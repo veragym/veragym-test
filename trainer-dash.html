@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="베라짐 트레이너">
+<meta name="theme-color" content="#3b82f6">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>VERA GYM | 트레이너</title>
+<style>
+/* ── Reset & Base ─────────────────────────────────────────── */
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; background:#080e1a; color:#fff; min-height:100dvh; overscroll-behavior:none; padding-bottom:90px; }
+
+/* ── 회원 상세 하단 작성 버튼 ─────────────────────────────── */
+.write-bar { position:fixed; bottom:0; left:0; right:0; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); background:#080e1a; border-top:1px solid #1e3a5f44; }
+.btn-write { width:100%; background:#1a3a5c; border:1.5px solid #3b82f655; border-radius:12px; padding:14px; font-size:15px; font-weight:700; color:#3b82f6; cursor:pointer; font-family:inherit; }
+.btn-write:hover { background:#243d5c; }
+
+/* ── Header ──────────────────────────────────────────────── */
+.header { background:#0d1525; border-bottom:1px solid #1e3a5f44; padding:16px 20px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+.header-title { font-size:16px; font-weight:800; }
+.header-title span { color:#3b82f6; }
+.header-sub { font-size:11px; color:#4a6580; }
+.btn-logout { background:none; border:1px solid #1e3a5f44; border-radius:8px; color:#4a6580; font-size:12px; padding:6px 12px; cursor:pointer; transition:all 0.15s; }
+.btn-logout:hover { border-color:#3b82f644; color:#3b82f6; }
+
+/* ── Top Tab Navigation ──────────────────────────────────── */
+.tabs { display:flex; background:#0d1525; border-bottom:1px solid #1e3a5f44; position:sticky; top:57px; z-index:99; overflow-x:auto; scrollbar-width:none; }
+.tabs::-webkit-scrollbar { display:none; }
+.tab-btn { flex:1; min-width:70px; padding:13px 8px; font-size:12px; font-weight:600; color:#4a6580; background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; transition:all 0.2s; white-space:nowrap; font-family:inherit; }
+.tab-btn.active { color:#3b82f6; border-bottom-color:#3b82f6; }
+
+/* ── Tab Content ─────────────────────────────────────────── */
+.tab-content { display:none; padding:16px 14px; }
+.tab-content.active { display:block; }
+
+/* ── Section Header ──────────────────────────────────────── */
+.sec-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.sec-title { font-size:15px; font-weight:700; }
+.sec-count { font-size:12px; color:#3a5878; margin-left:6px; }
+.btn-add { background:linear-gradient(135deg,#3b82f6,#1d4ed8); color:#fff; border:none; border-radius:10px; padding:8px 16px; font-size:13px; font-weight:700; cursor:pointer; }
+.btn-add:active { opacity:0.8; }
+
+/* ── Cards ───────────────────────────────────────────────── */
+.card { background:#0d1525; border:1px solid #1e3a5f44; border-radius:14px; padding:14px 16px; margin-bottom:10px; display:flex; align-items:center; gap:12px; cursor:pointer; transition:border-color 0.15s; }
+.card:hover, .card:active { border-color:#3b82f644; }
+.avatar { width:44px; height:44px; border-radius:50%; background:#141f35; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+.card-info { flex:1; min-width:0; }
+.card-name { font-size:15px; font-weight:700; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.card-sub { font-size:12px; color:#3a5878; margin-top:3px; }
+.badge { font-size:10px; padding:2px 8px; border-radius:20px; font-weight:600; }
+.badge-active { background:#3b82f622; border:1px solid #3b82f644; color:#60a5fa; }
+.badge-inactive { background:#33000088; border:1px solid #550000; color:#f87171; }
+.badge-req-pending { background:#f59e0b22; border:1px solid #f59e0b44; color:#fbbf24; }
+.badge-req-done { background:#22c55e22; border:1px solid #22c55e44; color:#4ade80; }
+.card-arrow { color:#1e3a5f; font-size:18px; flex-shrink:0; }
+
+/* ── Log Cards ───────────────────────────────────────────── */
+.log-card { background:#0d1525; border:1px solid #1e3a5f44; border-radius:14px; padding:14px 16px; margin-bottom:10px; }
+.log-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.log-date { font-size:13px; font-weight:700; color:#60a5fa; }
+.log-member { font-size:12px; color:#3a5878; }
+.log-notes { font-size:13px; color:#8ba4c0; line-height:1.5; margin-bottom:8px; }
+.log-exercises { display:flex; flex-wrap:wrap; gap:5px; }
+.ex-tag { background:#141f35; border:1px solid #1e3a5f; border-radius:99px; font-size:11px; color:#60a5fa; padding:3px 9px; }
+.log-actions { display:flex; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #1e3a5f22; }
+.btn-sm { flex:1; background:#141f35; border:1px solid #1e3a5f44; border-radius:8px; padding:8px 10px; font-size:12px; color:#60a5fa; cursor:pointer; font-family:inherit; text-align:center; }
+.btn-sm:hover { border-color:#3b82f644; }
+.btn-danger { color:#f87171; border-color:#3a1a1a; }
+.btn-danger:hover { border-color:#f87171 !important; }
+
+/* ── Request Cards ───────────────────────────────────────── */
+.req-card { background:#0d1525; border:1px solid #1e3a5f44; border-radius:12px; padding:14px 16px; margin-bottom:10px; }
+.req-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.req-type-tag { font-size:11px; font-weight:600; padding:3px 9px; border-radius:99px; }
+.type-db { background:#3b82f622; border:1px solid #3b82f644; color:#60a5fa; }
+.type-bug { background:#f8717122; border:1px solid #f8717144; color:#f87171; }
+.type-other { background:#aaaaaa22; border:1px solid #aaaaaa44; color:#aaaaaa; }
+.req-content { font-size:14px; line-height:1.5; margin-bottom:6px; }
+.req-meta { font-size:11px; color:#3a5878; }
+
+/* ── Modal ───────────────────────────────────────────────── */
+.modal-bg { display:none; position:fixed; inset:0; background:#000000cc; z-index:200; align-items:flex-end; justify-content:center; }
+.modal-bg.open { display:flex; }
+.modal { background:#0d1525; border-radius:24px 24px 0 0; border-top:1px solid #1e3a5f44; width:100%; max-width:520px; padding:0 20px calc(24px + env(safe-area-inset-bottom)); max-height:92dvh; overflow-y:auto; animation:slideUp .22s ease; }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+.modal-handle { width:36px; height:4px; background:#1e3a5f; border-radius:99px; margin:14px auto 18px; }
+.modal-title { font-size:17px; font-weight:700; margin-bottom:18px; }
+.field { margin-bottom:14px; }
+.field label { display:block; font-size:12px; color:#4a6580; margin-bottom:6px; font-weight:500; }
+.field input, .field select, .field textarea { width:100%; background:#080e1a; border:1.5px solid #1e3a5f44; border-radius:10px; padding:12px 14px; font-size:14px; color:#fff; outline:none; font-family:inherit; transition:border-color .2s; resize:none; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color:#3b82f6; }
+.field input::placeholder, .field textarea::placeholder { color:#253a52; }
+.field select option { background:#0d1525; }
+.field .hint { font-size:11px; color:#2a4060; margin-top:4px; }
+.modal-btns { display:flex; gap:10px; margin-top:18px; }
+.btn-cancel { flex:1; background:#141f35; border:1px solid #1e3a5f44; border-radius:12px; padding:14px; font-size:15px; color:#4a6580; cursor:pointer; font-weight:600; }
+.btn-save { flex:2; background:linear-gradient(135deg,#3b82f6,#1d4ed8); border:none; border-radius:12px; padding:14px; font-size:15px; color:#fff; font-weight:700; cursor:pointer; }
+.btn-save:disabled { opacity:0.4; cursor:default; }
+.err-box { display:none; background:#1a0d20; border:1px solid #5a2080; border-radius:8px; padding:10px 14px; font-size:13px; color:#c084fc; margin-bottom:12px; }
+
+
+/* ── Token Link ──────────────────────────────────────────── */
+.token-box { background:#141f35; border:1px solid #1e3a5f44; border-radius:10px; padding:10px 14px; font-size:12px; color:#3a5878; display:flex; align-items:center; gap:8px; margin-top:8px; cursor:pointer; }
+.token-box:hover { border-color:#3b82f644; }
+.token-url { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+
+/* ── Member Detail View ──────────────────────────────────── */
+.detail-header { display:flex; align-items:center; gap:12px; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid #1e3a5f22; }
+.btn-back { background:#141f35; border:1px solid #1e3a5f44; border-radius:8px; padding:6px 12px; font-size:13px; color:#60a5fa; cursor:pointer; flex-shrink:0; }
+
+/* ── Misc ────────────────────────────────────────────────── */
+.loading { text-align:center; padding:40px; color:#2a4060; }
+.empty { text-align:center; padding:40px; color:#2a4060; font-size:14px; line-height:1.8; }
+.divider { font-size:11px; font-weight:700; color:#3b82f6; letter-spacing:1px; margin:16px 0 10px; display:flex; align-items:center; gap:8px; }
+.divider::after { content:''; flex:1; height:1px; background:#1e3a5f44; }
+.toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#141f35; color:#60a5fa; border:1px solid #3b82f644; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:opacity .3s; z-index:9999; white-space:nowrap; }
+.spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,.2); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; margin-right:6px; vertical-align:middle; }
+@keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<div class="header">
+  <div>
+    <div class="header-title">VERA<span>GYM트레이너</span></div>
+    <div class="header-sub" id="trainerInfo">불러오는 중...</div>
+  </div>
+  <button class="btn-logout" onclick="doLogout()">로그아웃</button>
+</div>
+
+<!-- ── Top Tab Navigation ──────────────────────────────────── -->
+<div class="tabs">
+  <button class="tab-btn active" id="nav-members" onclick="switchTab('members',this)">내 회원</button>
+  <button class="tab-btn" id="nav-logs" onclick="switchTab('logs',this)">수업일지</button>
+  <button class="tab-btn" id="nav-requests" onclick="switchTab('requests',this)">요청사항</button>
+  <button class="tab-btn" onclick="location.href='exercise-library.html'">운동DB</button>
+</div>
+
+<!-- ── Tab: 회원 ───────────────────────────────────────────── -->
+<div id="tab-members" class="tab-content active">
+  <!-- 회원 목록 -->
+  <div id="view-member-list">
+    <div class="sec-header">
+      <div><span class="sec-title">내 회원</span><span class="sec-count" id="memberCount"></span></div>
+      <button class="btn-add" onclick="openAddMember()">+ 회원 추가</button>
+    </div>
+    <div id="memberList"><div class="loading">불러오는 중...</div></div>
+  </div>
+  <!-- 회원 상세 -->
+  <div id="view-member-detail" style="display:none">
+    <div class="detail-header">
+      <button class="btn-back" onclick="showMemberList()">목록</button>
+      <div>
+        <div class="sec-title" id="detailName"></div>
+        <div style="font-size:12px;color:#3a5878;margin-top:2px" id="detailSub"></div>
+      </div>
+    </div>
+    <div id="detailTokenBox"></div>
+    <div style="margin-top:16px">
+      <div class="divider">수업 기록</div>
+      <div id="memberLogs"><div class="loading">불러오는 중...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tab: 수업일지 ────────────────────────────────────────── -->
+<div id="tab-logs" class="tab-content">
+  <div class="sec-header">
+    <div><span class="sec-title">수업 일지</span><span class="sec-count" id="logCount"></span></div>
+  </div>
+  <div id="logList"><div class="loading">불러오는 중...</div></div>
+</div>
+
+<!-- ── Tab: 요청사항 ────────────────────────────────────────── -->
+<div id="tab-requests" class="tab-content">
+  <div class="sec-header">
+    <div><span class="sec-title">요청사항</span><span class="sec-count" id="reqCount"></span></div>
+    <button class="btn-add" onclick="openAddReq()">+ 요청 추가</button>
+  </div>
+  <div id="reqList"><div class="loading">불러오는 중...</div></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- 회원 상세 하단 고정 작성 버튼 -->
+<div id="writeBar" class="write-bar" style="display:none">
+  <button class="btn-write" onclick="location.href='session-write.html?member='+currentDetailMemberId">＋ 작성</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════════════════ -->
+
+<!-- 회원 추가 모달 -->
+<div id="addMemberModal" class="modal-bg" onclick="closeModal('addMemberModal',event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">회원 추가</div>
+    <div class="err-box" id="memberErr"></div>
+    <div class="field">
+      <label>이름 <span style="color:#f87171">*</span></label>
+      <input id="mName" type="text" placeholder="홍길동" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>메모 (선택)</label>
+      <textarea id="mNotes" placeholder="특이사항, 목표 등" rows="2"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('addMemberModal')">취소</button>
+      <button class="btn-save" id="btnAddMember" onclick="addMember()">추가</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- 요청사항 추가 모달 -->
+<div id="addReqModal" class="modal-bg" onclick="closeModal('addReqModal',event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">요청사항 추가</div>
+    <div class="err-box" id="reqErr"></div>
+    <div class="field">
+      <label>요청 유형</label>
+      <select id="reqType">
+        <option value="db_add">운동DB 추가 요청</option>
+        <option value="bug_report">버그/오류 신고</option>
+        <option value="other">기타</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>내용 <span style="color:#f87171">*</span></label>
+      <textarea id="reqContent" placeholder="요청 내용을 자세히 적어주세요" rows="4"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('addReqModal')">취소</button>
+      <button class="btn-save" id="btnAddReq" onclick="saveReq()">제출</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SCRIPTS
+═══════════════════════════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+init_db();
+preventBackExit();
+
+let me = null;          // 현재 로그인한 트레이너 정보
+let myMembers = [];     // 내 회원 캐시
+let currentDetailMemberId = null; // 현재 열린 회원 상세 ID
+const APP_URL = 'https://veragym.github.io/veragym-app/member-view.html';
+
+// ── 탭 데이터 캐시 (30초) ──────────────────────────────────
+const _tabCache = { members: 0, logs: 0, requests: 0 };
+const TAB_CACHE_MS = 30_000;
+function _cacheValid(tab) { return Date.now() - (_tabCache[tab] || 0) < TAB_CACHE_MS; }
+function _cacheSet(tab)   { _tabCache[tab] = Date.now(); }
+
+// ── 초기화 ─────────────────────────────────────────────────
+async function init() {
+  me = await requireTrainer();
+  if (!me) return;
+  document.getElementById('trainerInfo').textContent = `${me.name} · ${me.gym_location}`;
+
+  // myMembers 는 회원 선택 모달에서도 사용 → 어느 탭이든 항상 로드
+  loadMembers();
+  checkPendingReqs();
+
+  // URL 파라미터로 탭 지정 처리 (me 설정 이후 실행해야 loadLogs 등이 정상 동작)
+  const _urlTab = new URLSearchParams(location.search).get('tab');
+  if (_urlTab) {
+    const _btn = document.getElementById(`nav-${_urlTab}`);
+    if (_btn) switchTab(_urlTab, _btn);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 탭 전환
+// ══════════════════════════════════════════════════════════════
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${id}`).classList.add('active');
+  btn.classList.add('active');
+
+  // 탭 전환 시 회원 상세 작성 버튼 숨기기
+  document.getElementById('writeBar').style.display = 'none';
+
+  // 뒤로가기로 열린 detail 닫기
+  if (id === 'members') { showMemberList(); if (!_cacheValid('members')) loadMembers(); }
+  if (id === 'logs')    { if (!_cacheValid('logs'))     loadLogs(); }
+  if (id === 'requests') { if (!_cacheValid('requests')) loadRequests(); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 회원 관리
+// ══════════════════════════════════════════════════════════════
+async function loadMembers() {
+  const { data, error } = await db.from('members')
+    .select('*').eq('trainer_id', me.id).order('name');
+  if (error) { showToast('회원 불러오기 실패'); return; }
+  myMembers = data || [];
+  document.getElementById('memberCount').textContent = `(${myMembers.length}명)`;
+  renderMemberList();
+  _cacheSet('members');
+}
+
+function renderMemberList() {
+  const wrap = document.getElementById('memberList');
+  const active   = myMembers.filter(m => m.is_active);
+  const inactive = myMembers.filter(m => !m.is_active);
+
+  if (!myMembers.length) {
+    wrap.innerHTML = `<div class="empty">아직 등록된 회원이 없어요<br>위 추가 버튼으로 첫 회원을 등록해보세요</div>`;
+    return;
+  }
+
+  const card = m => `
+    <div class="card" onclick="showMemberDetail('${m.id}')">
+      <div class="avatar">${(m.name||'?').charAt(0)}</div>
+      <div class="card-info">
+        <div class="card-name">
+          ${m.name}
+          <span class="badge ${m.is_active ? 'badge-active' : 'badge-inactive'}">${m.is_active ? '활성' : '비활성'}</span>
+        </div>
+        <div class="card-sub">${m.gym_location}${m.notes ? ' · ' + m.notes.slice(0,20) : ''}</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>`;
+
+  let html = '';
+  if (active.length)   html += active.map(card).join('');
+  if (inactive.length) html += `<div class="divider">비활성 (${inactive.length})</div>` + inactive.map(card).join('');
+  wrap.innerHTML = html;
+}
+
+function openAddMember() {
+  document.getElementById('mName').value = '';
+  document.getElementById('mNotes').value = '';
+  document.getElementById('memberErr').style.display = 'none';
+  openModal('addMemberModal');
+}
+
+async function addMember() {
+  const name  = document.getElementById('mName').value.trim();
+  const notes = document.getElementById('mNotes').value.trim();
+  const btn   = document.getElementById('btnAddMember');
+
+  document.getElementById('memberErr').style.display = 'none';
+  if (!name) { showModalErr('memberErr', '이름을 입력해주세요'); return; }
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>추가 중...';
+  const { error } = await db.from('members').insert({
+    name, gym_location: me.gym_location, notes: notes || null, trainer_id: me.id, is_active: true
+  });
+
+  if (error) {
+    showModalErr('memberErr', '추가 실패: ' + error.message);
+  } else {
+    closeModal('addMemberModal');
+    showToast(`${name} 회원 추가 완료!`);
+    loadMembers();
+  }
+  btn.disabled = false; btn.textContent = '추가';
+}
+
+// ── 회원 상세 ──────────────────────────────────────────────
+async function showMemberDetail(memberId) {
+  const m = myMembers.find(x => x.id === memberId);
+  if (!m) return;
+
+  currentDetailMemberId = memberId;
+  document.getElementById('view-member-list').style.display = 'none';
+  document.getElementById('view-member-detail').style.display = 'block';
+  document.getElementById('writeBar').style.display = '';
+  document.getElementById('detailName').textContent = m.name;
+  document.getElementById('detailSub').textContent = `${m.gym_location}${m.notes ? ' · ' + m.notes : ''}`;
+
+  // 토큰 링크
+  const tokenUrl = `${APP_URL}?t=${m.token}`;
+  document.getElementById('detailTokenBox').innerHTML = `
+    <div class="token-box" onclick="copyToken('${tokenUrl}')">
+      <span style="font-size:11px;color:#3a5878">링크</span>
+      <span class="token-url">${tokenUrl}</span>
+      <span style="font-size:11px;color:#60a5fa;flex-shrink:0">복사</span>
+    </div>
+    <div style="font-size:11px;color:#2a4060;margin-top:6px">이 링크를 회원에게 전달하면 수업 기록을 볼 수 있습니다</div>`;
+
+  // 해당 회원 수업 기록 (필요 필드만 선택)
+  document.getElementById('memberLogs').innerHTML = '<div class="loading">불러오는 중...</div>';
+  const { data: logs } = await db.from('workout_logs')
+    .select('id,session_date,notes,member_id,workout_log_exercises(custom_name,sets_data,sets,reps)')
+    .eq('member_id', memberId)
+    .eq('is_deleted', false)
+    .order('session_date', { ascending: false })
+    .limit(30);
+
+  renderLogCards('memberLogs', logs, false);
+}
+
+function showMemberList() {
+  document.getElementById('view-member-list').style.display = 'block';
+  document.getElementById('view-member-detail').style.display = 'none';
+  document.getElementById('writeBar').style.display = 'none';
+  currentDetailMemberId = null;
+}
+
+async function shareToken(memberName, url) {
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: `${memberName}님 수업 기록 — VERA GYM`,
+        text: `${memberName}님의 VERA GYM 수업 기록을 확인해보세요!`,
+        url: url
+      });
+    } catch (_) {}
+  } else {
+    copyToken(url);
+  }
+}
+
+async function copyToken(url) {
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('링크 복사 완료!');
+  } catch {
+    showToast('링크: ' + url);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 수업 일지
+// ══════════════════════════════════════════════════════════════
+async function loadLogs() {
+  document.getElementById('logList').innerHTML = '<div class="loading">불러오는 중...</div>';
+
+  // ① 로그 기본정보 먼저 로드 (빠름 ~200ms) → 즉시 렌더
+  const { data: logs, error } = await db.from('workout_logs')
+    .select('id,session_date,notes,member_id,members(name)')
+    .eq('trainer_id', me.id).eq('is_deleted', false)
+    .order('session_date', { ascending: false }).limit(50);
+  if (error) { showToast('수업 일지 불러오기 실패'); return; }
+
+  const cnt = logs?.length || 0;
+  document.getElementById('logCount').textContent = cnt ? `(${cnt}개)` : '';
+  if (!cnt) {
+    document.getElementById('logList').innerHTML =
+      '<div class="empty">수업 일지가 없어요<br>위 작성 버튼으로 첫 일지를 기록해보세요</div>';
+    return;
+  }
+
+  // 운동 태그 없이 먼저 렌더 (체감 속도 향상)
+  renderLogCards('logList', logs.map(l => ({ ...l, workout_log_exercises: [] })), true);
+
+  // ② 운동 태그 별도 로드 후 업데이트 (~300ms)
+  const ids = logs.map(l => l.id);
+  const { data: exs } = await db.from('workout_log_exercises')
+    .select('log_id,custom_name,sets_data,sets,reps')
+    .in('log_id', ids);
+  if (!exs?.length) return;
+
+  const exMap = {};
+  exs.forEach(e => { (exMap[e.log_id] = exMap[e.log_id] || []).push(e); });
+  renderLogCards('logList', logs.map(l => ({ ...l, workout_log_exercises: exMap[l.id] || [] })), true);
+  _cacheSet('logs');
+}
+
+function renderLogCards(containerId, logs, showMember) {
+  const wrap = document.getElementById(containerId);
+  if (!logs?.length) {
+    wrap.innerHTML = `<div class="empty">수업 일지가 없어요<br>${showMember ? '위 작성 버튼으로 첫 일지를 기록해보세요' : '아직 기록이 없습니다'}</div>`;
+    return;
+  }
+
+  wrap.innerHTML = logs.map(log => {
+    const exs = log.workout_log_exercises || [];
+    const dateStr = new Date(log.session_date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
+    return `
+      <div class="log-card">
+        <div class="log-header">
+          <span class="log-date">${dateStr}</span>
+          ${showMember ? `<span class="log-member">${log.members?.name || '-'}</span>` : ''}
+        </div>
+        ${exs.length ? `<div class="log-exercises">${exs.map(e => {
+          const nm = e.custom_name || '운동';
+          const setInfo = e.sets_data?.length
+            ? `${e.sets_data.length}세트`
+            : (e.sets ? `${e.sets}×${e.reps}` : '');
+          return `<span class="ex-tag">${nm}${setInfo ? ' ' + setInfo : ''}</span>`;
+        }).join('')}</div>` : ''}
+        ${log.notes ? `<div class="log-notes" style="margin-top:8px">${log.notes}</div>` : ''}
+        <div class="log-actions">
+          <button class="btn-sm" onclick="location.href='session-write.html?log=${log.id}'">수정</button>
+          <button class="btn-sm btn-danger" onclick="deleteLog('${log.id}')">삭제</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+
+async function deleteLog(id) {
+  if (!confirm('이 수업 일지를 삭제할까요?\n(관리자는 복구할 수 있습니다)')) return;
+  const { error } = await db.from('workout_logs').update({ is_deleted: true }).eq('id', id);
+  if (error) { showToast('삭제 실패'); return; }
+  showToast('삭제됐습니다');
+  _tabCache.logs = 0;
+  loadLogs();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 요청사항
+// ══════════════════════════════════════════════════════════════
+async function checkPendingReqs() {
+  const { count } = await db.from('requests').select('id', { count: 'exact', head: true })
+    .eq('trainer_id', me.id).eq('status', 'pending');
+  if (count > 0) {
+    // Badge will be shown by CSS
+  }
+}
+
+async function loadRequests() {
+  const { data, error } = await db.from('requests')
+    .select('*').eq('trainer_id', me.id).order('created_at', { ascending: false });
+  if (error) { showToast('불러오기 실패'); return; }
+
+  const pending = data?.filter(r => r.status === 'pending') || [];
+  document.getElementById('reqCount').textContent = pending.length ? `(미처리 ${pending.length})` : `(${data?.length || 0}건)`;
+
+  const wrap = document.getElementById('reqList');
+  if (!data?.length) {
+    wrap.innerHTML = `<div class="empty">요청사항이 없어요<br>운동DB 추가, 버그 신고 등을 관리자에게 전달하세요</div>`;
+    return;
+  }
+
+  const TYPE = { db_add:'운동DB 추가', bug_report:'버그 신고', other:'기타' };
+  const TYPE_CLASS = { db_add:'type-db', bug_report:'type-bug', other:'type-other' };
+  const STATUS = { pending:'처리중', completed:'완료', deleted:'삭제됨' };
+
+  wrap.innerHTML = data.map(r => `
+    <div class="req-card">
+      <div class="req-top">
+        <span class="req-type-tag ${TYPE_CLASS[r.type]}">${TYPE[r.type]}</span>
+        <span class="badge ${r.status === 'completed' ? 'badge-req-done' : 'badge-req-pending'}">${STATUS[r.status] || r.status}</span>
+      </div>
+      <div class="req-content">${r.content}</div>
+      <div class="req-meta">${new Date(r.created_at).toLocaleDateString('ko-KR')}${r.admin_note ? ' · 관리자 메모: ' + r.admin_note : ''}</div>
+    </div>`).join('');
+  _cacheSet('requests');
+}
+
+function openAddReq() {
+  document.getElementById('reqContent').value = '';
+  document.getElementById('reqErr').style.display = 'none';
+  openModal('addReqModal');
+}
+
+async function saveReq() {
+  const type    = document.getElementById('reqType').value;
+  const content = document.getElementById('reqContent').value.trim();
+  const btn     = document.getElementById('btnAddReq');
+
+  document.getElementById('reqErr').style.display = 'none';
+  if (!content) { showModalErr('reqErr', '내용을 입력해주세요'); return; }
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>제출 중...';
+  const { error } = await db.from('requests').insert({
+    trainer_id: me.id, type, content, status: 'pending'
+  });
+
+  if (error) {
+    showModalErr('reqErr', '제출 실패: ' + error.message);
+  } else {
+    closeModal('addReqModal');
+    showToast('요청 제출 완료!');
+    loadRequests();
+  }
+  btn.disabled = false; btn.textContent = '제출';
+}
+
+// ══════════════════════════════════════════════════════════════
+// 공통 유틸
+// ══════════════════════════════════════════════════════════════
+function showModalErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function doLogout() {
+  await db.auth.signOut();
+  localStorage.removeItem('vg_trainer');
+  location.replace('trainer-login.html');
+}
+
+init();
+
+// ─── bfcache 복원 시 재초기화 ─────────────────────────────
+// exercise-library ↔ trainer-dash 탭 이동 시 bfcache 복원되면
+// me=null 상태로 자막·회원목록이 비어있을 수 있음
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted && !me) init();
+});
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/veragym-app/service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>

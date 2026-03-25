@@ -644,6 +644,14 @@ function renderCalGrid(dates){
   }
   // 마지막 라인 표시용 더미
   timeCol+=`<div style="position:absolute;top:${TOTAL_PX}px;width:1px;height:1px"></div></div>`;
+  // ── 예약 중 PT 세션 오프셋 계산 (같은 pt_product_id의 scheduled 건을 시간순 정렬 후 +1씩) ──
+  const _ptSorted=scheduleData
+    .filter(s=>s.type==='PT'&&s.status==='scheduled'&&s.pt_product_id)
+    .sort((a,b)=>(a.sched_date+a.start_time)<(b.sched_date+b.start_time)?-1:1);
+  const _ptOffsetMap=new Map();
+  const _ptCnt={};
+  _ptSorted.forEach(s=>{const k=s.pt_product_id;if(!_ptCnt[k])_ptCnt[k]=0;_ptOffsetMap.set(s.id,_ptCnt[k]++);});
+
   // ── 날짜 컬럼 (absolute 이벤트 포지셔닝) ──
   const dayCols=dates.map(d=>{
     const ymd=toYMD(d),isToday=ymd===todayYMD;
@@ -661,7 +669,7 @@ function renderCalGrid(dates){
     }
     col+=`<div class="cal-gridline-hr" style="top:${TOTAL_PX}px"></div>`;
     // ── 이벤트 블록 (픽셀 정확 위치) ──
-    scheduleData.filter(s=>s.sched_date===ymd).forEach(s=>{
+    scheduleData.filter(s=>s.sched_date===ymd&&s.status!=='cancelled').forEach(s=>{
       const[sh,sm]=s.start_time.split(':').map(Number);
       let eh,em;
       if(s.end_time){[eh,em]=s.end_time.split(':').map(Number);}else{eh=sh+1;em=sm;}
@@ -669,17 +677,28 @@ function renderCalGrid(dates){
       const dur=(eh-sh)+(em-sm)/60;
       const height=Math.max(dur*CAL_SLOT_PX,20);
       const mem=myMembersForSched.find(m=>m.id===s.member_id);
-      const bg=TYPE_COLORS[s.type||'PT']||'#6c63ff';
       const sType=s.type||'PT';
       const memName=mem?mem.name:'';
+      // 상태별 색상/스타일 처리
+      let evBg,evOpacity='1',evExtra='';
+      if(s.status==='noshow'){
+        evBg='#f59e0b';// 노쇼: 황색 고정
+      }else if(s.status==='completed'){
+        evBg=TYPE_COLORS[sType]||'#6c63ff';
+        evOpacity='0.45';// 완료: 원래 색상 어둡게
+        evExtra='<div style="position:absolute;top:2px;right:4px;font-size:10px;opacity:0.9">✓</div>';
+      }else{
+        evBg=TYPE_COLORS[sType]||'#6c63ff';// scheduled: 기본
+      }
       let sessionTxt='';
       if(sType==='PT'&&s.pt_products){
         const used=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);
-        sessionTxt=` ${used}/${s.pt_products.total_sessions||0}`;
+        const offset=s.status==='scheduled'?(_ptOffsetMap.get(s.id)||0):0;
+        sessionTxt=` ${used+offset}/${s.pt_products.total_sessions||0}`;
       }
       const evLine1=memName||sType;
       const evLine2=memName?`${sType}${sessionTxt}`:'';
-      col+=`<div class="cal-event" style="background:${bg}dd;top:${top}px;height:${height}px" onclick="event.stopPropagation();openSchedInfo('${s.id}')"><div class="cal-event-title">${evLine1}</div>${evLine2?`<div class="cal-event-sub">${evLine2}</div>`:''}</div>`;
+      col+=`<div class="cal-event" style="background:${evBg}dd;opacity:${evOpacity};top:${top}px;height:${height}px;position:absolute;" onclick="event.stopPropagation();openSchedInfo('${s.id}')">${evExtra}<div class="cal-event-title">${evLine1}</div>${evLine2?`<div class="cal-event-sub">${evLine2}</div>`:''}</div>`;
     });
     // 현재 시간 표시선
     if(isToday){const ny=timeToY(nowH,nowM);if(ny>=0&&ny<=TOTAL_PX)col+=`<div class="cal-now-line" style="top:${ny}px"></div>`;}
@@ -747,7 +766,13 @@ function openSchedInfo(schedId){
   const sessRow=document.getElementById('siSessionRow');
   if(s.type==='PT'){
     sessRow.style.display='flex';
-    if(s.pt_products){const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);document.getElementById('siSession').textContent=`${u}/${s.pt_products.total_sessions||0}회 사용`;}
+    if(s.pt_products){
+      const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);
+      // scheduled 상태면 같은 pt_product 중 앞에 있는 예약 수만큼 +N 표시
+      const ptSorted=scheduleData.filter(x=>x.type==='PT'&&x.status==='scheduled'&&x.pt_product_id===s.pt_product_id).sort((a,b)=>(a.sched_date+a.start_time)<(b.sched_date+b.start_time)?-1:1);
+      const offset=s.status==='scheduled'?ptSorted.findIndex(x=>x.id===s.id):0;
+      document.getElementById('siSession').textContent=`${u+(offset>=0?offset:0)}/${s.pt_products.total_sessions||0}회 사용`;
+    }
     else document.getElementById('siSession').textContent='-';
   }else{sessRow.style.display='none';}
   document.getElementById('siErr').style.display='none';

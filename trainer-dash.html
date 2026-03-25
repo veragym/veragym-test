@@ -615,7 +615,9 @@ async function loadScheduleView(){
     const{data:mems}=await db.from('members').select('id,name').eq('trainer_id',me.id).eq('is_active',true).order('name');
     myMembersForSched=mems||[];
   }
-  const{data,error}=await db.from('schedules').select('*').eq('trainer_id',me.id)
+  const{data,error}=await db.from('schedules')
+    .select('id,trainer_id,member_id,sched_date,start_time,end_time,type,status,notes,color,pt_product_id,pt_products(remaining_sessions,total_sessions)')
+    .eq('trainer_id',me.id)
     .gte('sched_date',toYMD(dates[0])).lte('sched_date',toYMD(dates[3])).order('start_time');
   if(error){await handleDbError(error,'일정 불러오기 실패');scheduleData=[];}
   else scheduleData=data||[];
@@ -667,7 +669,16 @@ function renderCalGrid(dates){
       const height=Math.max(dur*CAL_SLOT_PX,20);
       const mem=myMembersForSched.find(m=>m.id===s.member_id);
       const bg=s.color||'#6c63ff';
-      col+=`<div class="cal-event" style="background:${bg}dd;top:${top}px;height:${height}px" onclick="event.stopPropagation();openSchedModal('${s.id}',null,null)"><div class="cal-event-title">${s.title||'수업'}</div><div class="cal-event-sub">${mem?mem.name:toHM(s.start_time)+'~'+toHM(s.end_time)}</div></div>`;
+      const sType=s.type||'PT';
+      const memName=mem?mem.name:'';
+      let sessionTxt='';
+      if(sType==='PT'&&s.pt_products){
+        const used=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);
+        sessionTxt=` ${used}/${s.pt_products.total_sessions||0}`;
+      }
+      const evLine1=memName||sType;
+      const evLine2=memName?`${sType}${sessionTxt}`:'';
+      col+=`<div class="cal-event" style="background:${bg}dd;top:${top}px;height:${height}px" onclick="event.stopPropagation();openSchedModal('${s.id}',null,null)"><div class="cal-event-title">${evLine1}</div>${evLine2?`<div class="cal-event-sub">${evLine2}</div>`:''}</div>`;
     });
     // 현재 시간 표시선
     if(isToday){const ny=timeToY(nowH,nowM);if(ny>=0&&ny<=TOTAL_PX)col+=`<div class="cal-now-line" style="top:${ny}px"></div>`;}
@@ -738,9 +749,16 @@ if ('serviceWorker' in navigator) {
       <div id="schedEndDisplay" style="width:100%;background:#141f35;border:1px solid #1e3a5f44;border-radius:8px;color:#4a6580;padding:11px 14px;font-size:16px;font-weight:700;box-sizing:border-box;">오전 10:00</div>
       <input id="schedEnd" type="hidden" value="10:00">
     </div>
-    <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">제목</label>
-      <input id="schedTitle" type="text" placeholder="예) 개인 PT" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;"></div>
-    <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">회원 (선택)</label>
+    <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">유형</label>
+      <select id="schedType" onchange="onSchedTypeChange()" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;-webkit-appearance:none;">
+        <option value="PT">PT</option>
+        <option value="SPT">SPT</option>
+        <option value="업무">업무</option>
+        <option value="청소">청소</option>
+        <option value="홍보">홍보</option>
+        <option value="식사">식사</option>
+      </select></div>
+    <div id="schedMemberRow" style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">회원 (선택)</label>
       <select id="schedMember" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;-webkit-appearance:none;">
         <option value="">-- 회원 없음 --</option></select></div>
     <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:8px;">색상</label>
@@ -761,6 +779,11 @@ if ('serviceWorker' in navigator) {
 </div>
 <script>
 function selectSchedColor(el){_schedColor=el.dataset.color;document.querySelectorAll('#schedColorPicker span').forEach(s=>s.style.border='3px solid transparent');el.style.border='3px solid #fff';}
+// ── 유형 변경 시 회원 행 show/hide ──────────────────────────
+function onSchedTypeChange(){
+  const t=document.getElementById('schedType').value;
+  document.getElementById('schedMemberRow').style.display=(t==='PT'||t==='SPT')?'':'none';
+}
 // ── 커스텀 타임픽커 (30분 단위) ──────────────────────────────
 function formatKorTime(t){
   if(!t)return'--:--';
@@ -818,18 +841,22 @@ function openSchedModal(schedId,date,time){
       const et=toHM(data.end_time)||calcEndTime(st);
       document.getElementById('schedEnd').value=et;
       document.getElementById('schedEndDisplay').textContent=formatKorTime(et);
-      document.getElementById('schedTitle').value=data.title||'';
+      document.getElementById('schedType').value=data.type||'PT';
       document.getElementById('schedNotes').value=data.notes||'';
       sel.value=data.member_id||'';
       if(data.color){_schedColor=data.color;document.querySelectorAll('#schedColorPicker span').forEach(s=>s.style.border=s.dataset.color===data.color?'3px solid #fff':'3px solid transparent');}
+      onSchedTypeChange();
       document.getElementById('schedDeleteBtn').style.display='block';
       document.getElementById('schedModalTitle').textContent='일정 수정';
     });
   }else{
-    ['schedDate','schedTitle','schedNotes'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('schedDate').value='';
+    document.getElementById('schedNotes').value='';
+    document.getElementById('schedType').value='PT';
     sel.value='';document.getElementById('schedDeleteBtn').style.display='none';
     document.getElementById('schedDate').value=date||'';
     setStartTime(time||'09:00');
+    onSchedTypeChange();
     document.getElementById('schedModalTitle').textContent='일정 추가';
   }
   _schedEditId=schedId||null;
@@ -850,7 +877,9 @@ async function saveSchedule(){
   if(!date){errEl.textContent='날짜를 입력해주세요.';errEl.style.display='block';return;}
   if(!start){errEl.textContent='시작 시간을 입력해주세요.';errEl.style.display='block';return;}
   btn.disabled=true;btn.textContent='저장 중...';
-  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,title:document.getElementById('schedTitle').value.trim()||'수업',notes:document.getElementById('schedNotes').value.trim()||null,color:_schedColor,member_id:document.getElementById('schedMember').value||null};
+  const selType=document.getElementById('schedType').value||'PT';
+  const selMember=(selType==='PT'||selType==='SPT')?document.getElementById('schedMember').value||null:null;
+  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,type:selType,notes:document.getElementById('schedNotes').value.trim()||null,color:_schedColor,member_id:selMember};
   let error;
   if(_schedEditId){({error}=await db.from('schedules').update(payload).eq('id',_schedEditId));}
   else{({error}=await db.from('schedules').insert({...payload,status:'scheduled'}));}

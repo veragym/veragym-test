@@ -406,7 +406,7 @@ async function refreshAll() {
   const toDate   = toLocalISO(addDays(startDate, 3));
 
   let schedQ = db.from('schedules')
-    .select('id,pt_product_id,trainer_id,member_id,sched_date,start_time,end_time,status,notes,members(name),trainers(name)')
+    .select('id,pt_product_id,trainer_id,member_id,sched_date,start_time,end_time,type,status,notes,members(name),trainers(name),pt_products(remaining_sessions,total_sessions)')
     .gte('sched_date', fromDate)
     .lte('sched_date', toDate)
     .neq('status', 'cancelled')
@@ -490,10 +490,15 @@ function renderCal() {
         const dur = calcDurationMin(sched.start_time, sched.end_time);
         const span = Math.max(1, Math.ceil(dur/30));
         if (span>1) { td.rowSpan=span; for(let k=1;k<span;k++) occ[`${di}:${ti+k}`]=true; }
+        const sType2=sched.type||'PT';
+        let sessTxt2='';
+        if(sType2==='PT'&&sched.pt_products){const used2=(sched.pt_products.total_sessions||0)-(sched.pt_products.remaining_sessions||0);sessTxt2=` ${used2}/${sched.pt_products.total_sessions||0}`;}
+        const slotLine1=sched.members?.name||sType2;
+        const slotLine2=sched.members?.name?`${sType2}${sessTxt2}`:'';
         td.className = `slot s-${sched.status}${isToday?' today-bg':''}`;
         td.innerHTML = `<div class="slot-inner">
-          <div class="slot-name">${sched.members?.name||'-'}</div>
-          <div class="slot-lbl">${ST_LABEL[sched.status]||sched.status} · ${dur}m</div>
+          <div class="slot-name">${slotLine1}</div>
+          <div class="slot-lbl">${slotLine2||ST_LABEL[sched.status]||sched.status}</div>
         </div>`;
         td.onclick = () => openInfoModal(sched);
       } else if (isOff) {
@@ -531,6 +536,10 @@ function renderList() {
     groups[dateKey].sort((a,b)=>a.start_time.localeCompare(b.start_time)).forEach(s => {
       const timeStr = s.start_time?s.start_time.slice(0,5):'--:--';
       const dur = calcDurationMin(s.start_time, s.end_time);
+      const sType3 = s.type||'PT';
+      let sessTxt3='';
+      if(sType3==='PT'&&s.pt_products){const u3=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);sessTxt3=` ${u3}/${s.pt_products.total_sessions||0}`;}
+      const memberLine = s.members?.name ? `${s.members.name} <span class="scard-duration">${sType3}${sessTxt3} (${dur}분)</span>` : `<span class="scard-duration">${sType3} (${dur}분)</span>`;
       html += `<div class="sched-card">
         <div class="scard-top">
           <div class="scard-meta">
@@ -539,7 +548,7 @@ function renderList() {
             <span class="st-tag ${ST_CLS[s.status]||''}">${ST_LABEL[s.status]||s.status}</span>
           </div>
         </div>
-        <div class="scard-member">${s.members?.name||'-'} <span class="scard-duration">(${dur}분)</span></div>
+        <div class="scard-member">${memberLine}</div>
         ${s.notes?`<div class="scard-memo">${s.notes}</div>`:''}
         <div class="scard-actions">${buildActionBtns(s)}</div>
       </div>`;

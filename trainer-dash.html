@@ -786,8 +786,20 @@ async function saveSchedule(){
   if(error){errEl.textContent=error.message;errEl.style.display='block';return;}
   closeSchedModal();showToast(_schedEditId?'일정 수정 완료':'일정 추가 완료');await loadScheduleView();
 }
+let _deleteConfirmPending = false;
 async function deleteSchedule(){
-  if(!_schedEditId||!confirm('이 일정을 삭제할까요?'))return;
+  if(!_schedEditId) return;
+  const btn = document.getElementById('schedDeleteBtn');
+  if(!_deleteConfirmPending){
+    _deleteConfirmPending = true;
+    btn.textContent = '정말 삭제?';
+    btn.style.background = '#ff4d4f';
+    btn.style.borderColor = '#ff4d4f';
+    btn.style.color = '#fff';
+    setTimeout(()=>{ if(_deleteConfirmPending){ _deleteConfirmPending=false; btn.textContent='삭제'; btn.style.background='#3a1a1a'; btn.style.borderColor='#ff4d4f55'; btn.style.color='#ff4d4f'; }}, 3000);
+    return;
+  }
+  _deleteConfirmPending = false;
   const{error}=await db.from('schedules').delete().eq('id',_schedEditId);
   if(error){showToast('삭제 실패: '+error.message);return;}
   closeSchedModal();showToast('일정 삭제 완료');await loadScheduleView();

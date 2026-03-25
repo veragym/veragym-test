@@ -111,6 +111,14 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:#2a2518; color:#c9a84c; border:1px solid #c9a84c44; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:opacity 0.3s; z-index:9999; white-space:nowrap; }
 .spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(0,0,0,0.2); border-top-color:#000; border-radius:50%; animation:spin 0.7s linear infinite; margin-right:6px; vertical-align:middle; }
 @keyframes spin { to{transform:rotate(360deg)} }
+/* ── PT 상품 카드 ── */
+.pt-card { background:#0f0f0a; border:1px solid #2a2518; border-radius:10px; padding:12px 14px; margin-bottom:8px; }
+.pt-card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+.pt-sessions { font-size:20px; font-weight:800; color:#c9a84c; }
+.pt-sessions-label { font-size:12px; color:#555; }
+.pt-badge-active { background:#4ade8022; border:1px solid #4ade8044; border-radius:20px; padding:2px 10px; font-size:11px; color:#4ade80; font-weight:600; }
+.pt-badge-done { background:#f8717122; border:1px solid #f8717144; border-radius:20px; padding:2px 10px; font-size:11px; color:#f87171; font-weight:600; }
+.pt-meta { font-size:12px; color:#666; line-height:1.8; margin-top:4px; }
 /* ── 운동DB 필터 ── */
 .ex-search-area {
   position:sticky; top:96px; z-index:90; background:#0a0a0a;
@@ -267,6 +275,58 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal('addMemberModal')">취소</button>
       <button class="btn-save" id="btnAddMember" onclick="addMember()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 회원 상세 (PT 상품) 모달 -->
+<div id="memberDetailModal" class="modal-bg" onclick="closeModal('memberDetailModal',event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="modal-title" id="detailMemberName" style="margin-bottom:0"></div>
+      <button class="btn-add" style="font-size:12px;padding:6px 12px" onclick="openAddPtProduct()">+ PT 상품</button>
+    </div>
+    <div id="detailMemberMeta" style="font-size:12px;color:#666;margin-bottom:18px"></div>
+    <div style="font-size:11px;color:#888;letter-spacing:1.2px;margin-bottom:10px;font-weight:600">PT 상품 목록</div>
+    <div id="ptProductList"></div>
+    <button class="btn-cancel" style="margin-top:16px;width:100%" onclick="closeModal('memberDetailModal')">닫기</button>
+  </div>
+</div>
+
+<!-- PT 상품 추가 모달 -->
+<div id="addPtModal" class="modal-bg" onclick="closeModal('addPtModal',event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="addPtTitle">PT 상품 추가</div>
+    <div class="err-box" id="ptErr"></div>
+    <div class="field">
+      <label>계약일 <span style="color:#f87171">*</span></label>
+      <input id="ptDate" type="date">
+    </div>
+    <div class="field">
+      <label>횟수 <span style="color:#f87171">*</span></label>
+      <input id="ptSessions" type="number" min="1" placeholder="예: 30">
+    </div>
+    <div class="field">
+      <label>계약 트레이너 <span style="color:#f87171">*</span></label>
+      <select id="ptContractTrainer">
+        <option value="">-- 선택 --</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>담당 트레이너 <span style="color:#f87171">*</span></label>
+      <select id="ptAssignedTrainer">
+        <option value="">-- 선택 --</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>메모 (선택)</label>
+      <textarea id="ptNotes" rows="2" style="width:100%;background:#0a0a08;border:1.5px solid #2a2518;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;resize:none"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('addPtModal')">취소</button>
+      <button class="btn-save" id="btnAddPt" onclick="addPtProduct()">추가</button>
     </div>
   </div>
 </div>
@@ -593,78 +653,130 @@ function showAllBranches() {
 }
 
 function showBranch(branch) {
-  // 해당 지점의 트레이너 목록 (회원이 있는 트레이너)
   const branchMembers = _allMembers.filter(m => (m.gym_location || '미지정') === branch);
-  const trainerIds = [...new Set(branchMembers.map(m => m.trainer_id).filter(Boolean))];
-  const trainerList = trainerIds.map(tid => _allTrainers.find(t => t.id === tid)).filter(Boolean);
-  // 미배정 회원
-  const unassigned = branchMembers.filter(m => !m.trainer_id);
-
   setBreadcrumb([
     {label:'전 지점', onclick:'showAllBranches()'},
     {label: branch, onclick:`showBranch('${branch}')`},
   ]);
   const wrap = document.getElementById('memberList');
-  let html = '';
-  if (trainerList.length) {
-    html += trainerList.map(t => {
-      const cnt = branchMembers.filter(m => m.trainer_id === t.id).length;
-      return `<div class="hier-row" onclick="showTrainer('${t.id}','${branch}')">
-        <div class="hier-icon">${(t.name||'?').charAt(0)}</div>
-        <div class="hier-info">
-          <div class="hier-name">${t.name}</div>
-          <div class="hier-sub">담당 회원 ${cnt}명${!t.is_active ? ' · 비활성' : ''}</div>
-        </div>
-        <div class="hier-arrow">›</div>
-      </div>`;
-    }).join('');
-  }
-  if (unassigned.length) {
-    html += `<div class="hier-row" onclick="showTrainer('__unassigned__','${branch}')">
-      <div class="hier-info">
-        <div class="hier-name">미배정</div>
-        <div class="hier-sub">트레이너 미배정 회원 ${unassigned.length}명</div>
-      </div>
-      <div class="hier-arrow">›</div>
-    </div>`;
-  }
-  if (!html) html = '<div class="empty">회원이 없어요</div>';
+  if (!branchMembers.length) { wrap.innerHTML = '<div class="empty">등록된 회원이 없어요</div>'; return; }
+  const active   = branchMembers.filter(m => m.is_active);
+  const inactive = branchMembers.filter(m => !m.is_active);
+  let html = active.map(m => memberRow(m)).join('');
+  if (inactive.length) html += `<div class="group-label" style="margin-top:14px">비활성 (${inactive.length})</div>` + inactive.map(m => memberRow(m)).join('');
   wrap.innerHTML = html;
 }
 
-function showTrainer(trainerId, branch) {
-  const members = trainerId === '__unassigned__'
-    ? _allMembers.filter(m => !m.trainer_id && (m.gym_location || '미지정') === branch)
-    : _allMembers.filter(m => m.trainer_id === trainerId && (m.gym_location || '미지정') === branch);
-  const trainer = _allTrainers.find(t => t.id === trainerId);
-  const trainerName = trainer?.name || '미배정';
-
-  setBreadcrumb([
-    {label:'전 지점', onclick:'showAllBranches()'},
-    {label: branch, onclick:`showBranch('${branch}')`},
-    {label: trainerName, onclick:`showTrainer('${trainerId}','${branch}')`},
-  ]);
-  const wrap = document.getElementById('memberList');
-  if (!members.length) { wrap.innerHTML = '<div class="empty">담당 회원이 없어요</div>'; return; }
-  wrap.innerHTML = members.map(m => `
-    <div class="hier-row" onclick="showMemberMemo('${m.id}')">
-      <div class="hier-info">
-        <div class="hier-name">${m.name}${!m.is_active ? ' <span style="font-size:10px;color:#f87171">비활성</span>' : ''}</div>
-        <div class="hier-sub">${m.notes ? m.notes.slice(0,30) + (m.notes.length > 30 ? '…' : '') : '메모 없음'}</div>
-      </div>
-      <div class="hier-arrow" style="font-size:12px;color:#555">메모 ›</div>
-    </div>`).join('');
+function memberRow(m) {
+  const trainer = _allTrainers.find(t => t.id === m.trainer_id);
+  return `<div class="hier-row" onclick="showMemberDetail('${m.id}')">
+    <div class="hier-info">
+      <div class="hier-name">${m.name}${!m.is_active ? ' <span style="font-size:10px;color:#f87171">비활성</span>' : ''}</div>
+      <div class="hier-sub">담당: ${trainer?.name || '미배정'}</div>
+    </div>
+    <div class="hier-arrow">›</div>
+  </div>`;
 }
 
-function showMemberMemo(memberId) {
+let _currentMemberId = null;
+
+async function showMemberDetail(memberId) {
   const m = _allMembers.find(x => x.id === memberId);
   if (!m) return;
+  _currentMemberId = memberId;
   const trainer = _allTrainers.find(t => t.id === m.trainer_id);
-  document.getElementById('memoMemberName').textContent = m.name;
-  document.getElementById('memoMemberMeta').textContent =
+  document.getElementById('detailMemberName').textContent = m.name;
+  document.getElementById('detailMemberMeta').textContent =
     `${m.gym_location || ''} · 담당: ${trainer?.name || '미배정'}`;
-  document.getElementById('memoContent').textContent = m.notes || '(메모 없음)';
-  openModal('memoModal');
+  document.getElementById('ptProductList').innerHTML = '<div class="loading" style="padding:20px;font-size:13px">불러오는 중...</div>';
+  openModal('memberDetailModal');
+  await loadPtProducts(memberId);
+}
+
+async function loadPtProducts(memberId) {
+  const { data, error } = await db
+    .from('pt_products')
+    .select('id,contract_date,total_sessions,remaining_sessions,contract_trainer_id,assigned_trainer_id,notes,is_active')
+    .eq('member_id', memberId)
+    .order('created_at', { ascending: false });
+  const wrap = document.getElementById('ptProductList');
+  if (error) { wrap.innerHTML = '<div class="empty">불러오기 실패</div>'; return; }
+  if (!data || !data.length) { wrap.innerHTML = '<div style="text-align:center;padding:20px;color:#444;font-size:13px">등록된 PT 상품이 없어요</div>'; return; }
+  wrap.innerHTML = data.map(p => {
+    const ct = _allTrainers.find(t => t.id === p.contract_trainer_id);
+    const at = _allTrainers.find(t => t.id === p.assigned_trainer_id);
+    const active = p.is_active && p.remaining_sessions > 0;
+    return `<div class="pt-card">
+      <div class="pt-card-header">
+        <div>
+          <span class="pt-sessions">${p.remaining_sessions}</span>
+          <span class="pt-sessions-label"> / ${p.total_sessions}회 남음</span>
+        </div>
+        <span class="${active ? 'pt-badge-active' : 'pt-badge-done'}">${active ? '진행중' : '종료'}</span>
+      </div>
+      <div class="pt-meta">
+        계약일 ${p.contract_date}<br>
+        계약 ${ct?.name || '미지정'} · 담당 ${at?.name || '미지정'}
+        ${p.notes ? `<br>${p.notes}` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAddPtProduct() {
+  const m = _allMembers.find(x => x.id === _currentMemberId);
+  const gym = m?.gym_location || '';
+  document.getElementById('addPtTitle').textContent = `PT 상품 추가 — ${m?.name || ''}`;
+  document.getElementById('ptErr').style.display = 'none';
+  document.getElementById('ptDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ptSessions').value = '';
+  document.getElementById('ptNotes').value = '';
+
+  const trainers = _allTrainers
+    .filter(t => t.is_active && (!gym || t.gym_location === gym))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  const opts = '<option value="">-- 선택 --</option>' + trainers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  document.getElementById('ptContractTrainer').innerHTML = opts;
+  document.getElementById('ptAssignedTrainer').innerHTML = opts;
+  openModal('addPtModal');
+}
+
+async function addPtProduct() {
+  const date       = document.getElementById('ptDate').value;
+  const sessions   = parseInt(document.getElementById('ptSessions').value);
+  const contractTr = document.getElementById('ptContractTrainer').value;
+  const assignedTr = document.getElementById('ptAssignedTrainer').value;
+  const notes      = document.getElementById('ptNotes').value.trim();
+  const btn        = document.getElementById('btnAddPt');
+  const errBox     = document.getElementById('ptErr');
+
+  errBox.style.display = 'none';
+  if (!date)                   { errBox.textContent = '계약일을 입력해주세요';        errBox.style.display = 'block'; return; }
+  if (!sessions || sessions < 1){ errBox.textContent = '횟수를 입력해주세요';           errBox.style.display = 'block'; return; }
+  if (!contractTr)             { errBox.textContent = '계약 트레이너를 선택해주세요'; errBox.style.display = 'block'; return; }
+  if (!assignedTr)             { errBox.textContent = '담당 트레이너를 선택해주세요'; errBox.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>추가 중...';
+  const { error } = await db.from('pt_products').insert({
+    member_id: _currentMemberId,
+    contract_date: date,
+    total_sessions: sessions,
+    remaining_sessions: sessions,
+    contract_trainer_id: contractTr,
+    assigned_trainer_id: assignedTr,
+    notes: notes || null,
+    is_active: true,
+  });
+
+  if (error) {
+    errBox.textContent = '추가 실패: ' + error.message;
+    errBox.style.display = 'block';
+  } else {
+    closeModal('addPtModal');
+    showToast('PT 상품이 추가됐어요!');
+    await loadPtProducts(_currentMemberId);
+  }
+  btn.disabled = false; btn.textContent = '추가';
 }
 
 // ── 회원 추가 ────────────────────────────────────────────────

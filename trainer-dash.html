@@ -344,7 +344,7 @@ function switchTab(id, btn) {
 async function loadMembers() {
   const { data, error } = await db.from('members')
     .select('*').eq('trainer_id', me.id).order('name');
-  if (error) { showToast('회원 불러오기 실패'); return; }
+  if (await handleDbError(error, '회원 불러오기 실패')) return;
   myMembers = data || [];
   document.getElementById('memberCount').textContent = `(${myMembers.length}명)`;
   renderMemberList();
@@ -485,7 +485,7 @@ async function loadLogs() {
     .select('id,session_date,notes,member_id,members(name)')
     .eq('trainer_id', me.id).eq('is_deleted', false)
     .order('session_date', { ascending: false }).limit(50);
-  if (error) { showToast('수업 일지 불러오기 실패'); return; }
+  if (await handleDbError(error, '수업일지 불러오기 실패')) return;
 
   const cnt = logs?.length || 0;
   document.getElementById('logCount').textContent = cnt ? `(${cnt}개)` : '';
@@ -567,7 +567,7 @@ async function checkPendingReqs() {
 async function loadRequests() {
   const { data, error } = await db.from('requests')
     .select('*').eq('trainer_id', me.id).order('created_at', { ascending: false });
-  if (error) { showToast('불러오기 실패'); return; }
+  if (await handleDbError(error, '요청사항 불러오기 실패')) return;
 
   const pending = data?.filter(r => r.status === 'pending') || [];
   document.getElementById('reqCount').textContent = pending.length ? `(미처리 ${pending.length})` : `(${data?.length || 0}건)`;
@@ -689,6 +689,20 @@ function renderCalDetail(date){
     const member=myMembersForSched.find(m=>m.id===s.member_id);
     return `<div class="sched-card" style="border-left-color:${s.color||'#6c63ff'}" onclick="openSchedModal('${s.id}',null)"><div class="sched-card-time">${toHM(s.start_time)}${s.end_time?' ~ '+toHM(s.end_time):''}</div><div class="sched-card-title">${s.title||'수업'}</div>${member?`<div class="sched-card-member">${member.name}</div>`:''}</div>`;
   }).join('');
+}
+
+// ── 에러 공통 처리 ──────────────────────────────────────────
+async function handleDbError(error, fallbackMsg) {
+  if (!error) return false;
+  const msg = error.message || '';
+  // JWT 만료 또는 인증 에러 → 재로그인
+  if (msg.includes('JWT') || msg.includes('expired') || msg.includes('Invalid token') || error.status === 401) {
+    await db.auth.signOut();
+    location.replace('trainer-login.html');
+    return true;
+  }
+  showToast((fallbackMsg || '오류') + ': ' + msg.slice(0, 40));
+  return true;
 }
 const _origSwitchTab=switchTab;
 switchTab=function(id,btn){_origSwitchTab(id,btn);if(id==='schedule')loadScheduleView();};

@@ -263,6 +263,13 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
       </select>
     </div>
     <div class="field">
+      <label>계약 트레이너</label>
+      <select id="mContractTrainer">
+        <option value="">-- 선택 --</option>
+      </select>
+      <div class="hint">PT 계약 담당자 (없으면 생략 가능)</div>
+    </div>
+    <div class="field">
       <label>담당 트레이너 <span style="color:#f87171">*</span></label>
       <select id="mTrainer">
         <option value="">-- 선택 --</option>
@@ -271,6 +278,21 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
     <div class="field">
       <label>메모 (선택)</label>
       <textarea id="mNotes" placeholder="특이사항, 목표 등" rows="2" style="width:100%;background:#0a0a08;border:1.5px solid #2a2518;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;resize:none"></textarea>
+    </div>
+    <!-- PT 상품 섹션 -->
+    <div style="font-size:11px;color:#c9a84c88;letter-spacing:1.2px;font-weight:600;margin:16px 0 12px;display:flex;align-items:center;gap:8px">
+      PT 상품 <span style="flex:1;height:1px;background:#2a2518;display:block"></span>
+      <span style="font-size:10px;color:#555;font-weight:400">선택사항</span>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1">
+        <label>계약일</label>
+        <input id="mContractDate" type="date">
+      </div>
+      <div class="field" style="flex:1">
+        <label>횟수</label>
+        <input id="mSessions" type="number" min="1" placeholder="예: 30">
+      </div>
     </div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal('addMemberModal')">취소</button>
@@ -327,6 +349,34 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeModal('addPtModal')">취소</button>
       <button class="btn-save" id="btnAddPt" onclick="addPtProduct()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 담당트레이너 변경 모달 -->
+<div id="changeTrainerModal" class="modal-bg" onclick="closeModal('changeTrainerModal',event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">담당 트레이너 변경</div>
+    <div class="err-box" id="ctErr"></div>
+    <div class="field">
+      <label>계약 트레이너 <span style="color:#555;font-weight:400;font-size:11px">(변경 불가)</span></label>
+      <div id="ctContractName" style="background:#0a0a08;border:1.5px solid #1a1a14;border-radius:10px;padding:12px 14px;font-size:14px;color:#555;cursor:not-allowed"></div>
+    </div>
+    <div class="field">
+      <label>담당 트레이너 <span style="color:#f87171">*</span></label>
+      <select id="ctTrainerSel"></select>
+    </div>
+    <div class="field" style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <input type="checkbox" id="ctSyncMember" checked style="width:auto;height:auto;flex-shrink:0;accent-color:#c9a84c">
+      <label for="ctSyncMember" style="font-size:12px;color:#888;margin-bottom:0;cursor:pointer;line-height:1.4">
+        회원의 담당 트레이너도 함께 변경<br>
+        <span style="color:#555;font-size:11px">(목록 분류에 반영됩니다)</span>
+      </label>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('changeTrainerModal')">취소</button>
+      <button class="btn-save" id="btnCtSave" onclick="saveChangeTrainer()">변경</button>
     </div>
   </div>
 </div>
@@ -408,6 +458,19 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script>
+// ── 모달 / 뒤로가기 유틸 ───────────────────────────────────────
+function preventBackExit() {
+  history.pushState(null, '', location.href);
+  window.addEventListener('popstate', () => history.pushState(null, '', location.href));
+}
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id, e) {
+  if (e && e.target !== e.currentTarget) return;
+  document.getElementById(id).classList.remove('open');
+}
+// ─────────────────────────────────────────────────────────────
 init_db();
 preventBackExit();
 
@@ -706,6 +769,8 @@ async function loadPtProducts(memberId) {
     const ct = _allTrainers.find(t => t.id === p.contract_trainer_id);
     const at = _allTrainers.find(t => t.id === p.assigned_trainer_id);
     const active = p.is_active && p.remaining_sessions > 0;
+    const cId = p.contract_trainer_id || '';
+    const aId = p.assigned_trainer_id || '';
     return `<div class="pt-card">
       <div class="pt-card-header">
         <div>
@@ -716,11 +781,64 @@ async function loadPtProducts(memberId) {
       </div>
       <div class="pt-meta">
         계약일 ${p.contract_date}<br>
-        계약 ${ct?.name || '미지정'} · 담당 ${at?.name || '미지정'}
+        계약 ${ct?.name || '미지정'} · 담당 <span style="color:#c9a84c">${at?.name || '미지정'}</span>
         ${p.notes ? `<br>${p.notes}` : ''}
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn-sm" style="font-size:11px"
+          onclick="openChangeTrainer('${p.id}','${cId}','${aId}')">담당 트레이너 변경</button>
       </div>
     </div>`;
   }).join('');
+}
+
+// ── 담당트레이너 변경 ─────────────────────────────────────────
+let _ctProductId = null;
+
+function openChangeTrainer(productId, contractTrainerId, assignedTrainerId) {
+  _ctProductId = productId;
+  const cTr = _allTrainers.find(t => t.id === contractTrainerId);
+  document.getElementById('ctContractName').textContent = cTr?.name || '미지정';
+  const sel = document.getElementById('ctTrainerSel');
+  sel.innerHTML = '<option value="">미배정</option>' +
+    _allTrainers.filter(t => !t.is_admin && t.is_active)
+      .sort((a,b) => a.name.localeCompare(b.name,'ko'))
+      .map(t => `<option value="${t.id}"${t.id === assignedTrainerId ? ' selected' : ''}>${t.name}</option>`)
+      .join('');
+  document.getElementById('ctErr').style.display = 'none';
+  document.getElementById('ctSyncMember').checked = true;
+  openModal('changeTrainerModal');
+}
+
+async function saveChangeTrainer() {
+  const newTrId    = document.getElementById('ctTrainerSel').value || null;
+  const syncMember = document.getElementById('ctSyncMember').checked;
+  const btn = document.getElementById('btnCtSave');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>저장 중...';
+  try {
+    // pt_products.assigned_trainer_id 업데이트
+    const { error: e1 } = await db.from('pt_products')
+      .update({ assigned_trainer_id: newTrId }).eq('id', _ctProductId);
+    if (e1) throw e1;
+    // members.trainer_id 동기화 (체크 시)
+    if (syncMember && _currentMemberId) {
+      const { error: e2 } = await db.from('members')
+        .update({ trainer_id: newTrId }).eq('id', _currentMemberId);
+      if (e2) throw e2;
+    }
+    closeModal('changeTrainerModal');
+    showToast('담당 트레이너 변경 완료!');
+    // 로컬 데이터 갱신 후 현재 상품 목록 재렌더
+    const { data } = await db.from('members')
+      .select('id,name,gym_location,notes,is_active,trainer_id').order('name');
+    if (data) _allMembers = data;
+    if (_currentMemberId) await loadPtProducts(_currentMemberId);
+  } catch(e) {
+    const el = document.getElementById('ctErr');
+    el.textContent = e.message || '저장 실패'; el.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = '변경';
+  }
 }
 
 function openAddPtProduct() {
@@ -786,6 +904,8 @@ function openAddMember() {
   document.getElementById('mName').value = '';
   document.getElementById('mSuffix').value = '';
   document.getElementById('mNotes').value = '';
+  document.getElementById('mContractDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('mSessions').value = '';
   document.getElementById('memberErr').style.display = 'none';
   document.getElementById('mNameHint').style.display = 'none';
   document.getElementById('mSuffixField').style.display = 'none';
@@ -796,14 +916,14 @@ function openAddMember() {
 }
 
 function filterTrainersByGym(gym) {
-  const sel = document.getElementById('mTrainer');
-  sel.innerHTML = '<option value="">-- 선택 --</option>';
-  _allTrainers
+  const trainers = _allTrainers
     .filter(t => t.is_active && t.gym_location === gym)
-    .sort((a,b) => a.name.localeCompare(b.name, 'ko'))
-    .forEach(t => {
-      sel.innerHTML += `<option value="${t.id}">${t.name}</option>`;
-    });
+    .sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+  const blank = '<option value="">-- 선택 --</option>';
+  const trOpts = blank + trainers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  const ctOpts = '<option value="">-- 선택 안 함 --</option>' + trainers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  document.getElementById('mTrainer').innerHTML = trOpts;
+  document.getElementById('mContractTrainer').innerHTML = ctOpts;
 }
 
 function onGymChange() {
@@ -829,39 +949,61 @@ function onMemberNameInput() {
 
 
 async function addMember() {
-  const rawName = document.getElementById('mName').value.trim();
-  const suffix  = document.getElementById('mSuffix').value.trim();
-  const name    = rawName + suffix;
-  const notes   = document.getElementById('mNotes').value.trim();
-  const trainerId = document.getElementById('mTrainer').value || null;
-  const gym     = document.getElementById('mGym').value;
-  const btn     = document.getElementById('btnAddMember');
-  const errBox  = document.getElementById('memberErr');
+  const rawName      = document.getElementById('mName').value.trim();
+  const suffix       = document.getElementById('mSuffix').value.trim();
+  const name         = rawName + suffix;
+  const notes        = document.getElementById('mNotes').value.trim();
+  const trainerId    = document.getElementById('mTrainer').value || null;
+  const contractTrId = document.getElementById('mContractTrainer').value || null;
+  const contractDate = document.getElementById('mContractDate').value;
+  const sessions     = parseInt(document.getElementById('mSessions').value) || 0;
+  const gym          = document.getElementById('mGym').value;
+  const btn          = document.getElementById('btnAddMember');
+  const errBox       = document.getElementById('memberErr');
 
   errBox.style.display = 'none';
-  if (!rawName) { errBox.textContent = '이름을 입력해주세요'; errBox.style.display = 'block'; return; }
-  if (!trainerId) { errBox.textContent = '담당 트레이너를 선택해주세요'; errBox.style.display = 'block'; return; }
+  if (!rawName)    { errBox.textContent = '이름을 입력해주세요'; errBox.style.display = 'block'; return; }
+  if (!trainerId)  { errBox.textContent = '담당 트레이너를 선택해주세요'; errBox.style.display = 'block'; return; }
+  // PT 상품 입력 부분 검증 (날짜/횟수 중 하나만 입력된 경우)
+  if ((contractDate && !sessions) || (!contractDate && sessions > 0)) {
+    errBox.textContent = 'PT 상품 등록 시 계약일과 횟수를 모두 입력해주세요'; errBox.style.display = 'block'; return;
+  }
 
   // 최종 이름 중복 체크
   const exactDupe = _allMembers.find(m => m.name === name);
   if (exactDupe) {
     errBox.textContent = `"${name}" 이름이 이미 존재합니다. suffix를 변경해 주세요.`;
-    errBox.style.display = 'block';
-    return;
+    errBox.style.display = 'block'; return;
   }
 
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>추가 중...';
-  const { error } = await db.from('members').insert({
-    name, gym_location: gym, notes: notes || null, trainer_id: trainerId, is_active: true
-  });
+  try {
+    // 1. 회원 추가
+    const { data: newMember, error: e1 } = await db.from('members')
+      .insert({ name, gym_location: gym, notes: notes || null, trainer_id: trainerId, is_active: true })
+      .select('id').single();
+    if (e1) throw e1;
 
-  if (error) {
-    errBox.textContent = '추가 실패: ' + error.message;
-    errBox.style.display = 'block';
-  } else {
+    // 2. PT 상품 추가 (날짜와 횟수 모두 입력된 경우)
+    if (contractDate && sessions > 0) {
+      const { error: e2 } = await db.from('pt_products').insert({
+        member_id: newMember.id,
+        contract_date: contractDate,
+        total_sessions: sessions,
+        remaining_sessions: sessions,
+        contract_trainer_id: contractTrId,
+        assigned_trainer_id: trainerId,
+        is_active: true,
+      });
+      if (e2) throw e2;
+    }
+
     closeModal('addMemberModal');
     showToast(`${name} 회원 추가 완료!`);
     loadMembers();
+  } catch(e) {
+    errBox.textContent = '추가 실패: ' + e.message;
+    errBox.style.display = 'block';
   }
   btn.disabled = false; btn.textContent = '추가';
 }

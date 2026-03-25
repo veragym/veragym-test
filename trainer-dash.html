@@ -666,9 +666,9 @@ function renderCalGrid(dates){
   // ── 날짜 헤더 ──
   // gutter에 시간표 버튼 삽입
   document.getElementById('calDateRow').innerHTML=
-    '<div class="cal-gutter" onclick="openBranchSchedModal()" style="display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:1px;user-select:none;">'+
-    '<span style="font-size:14px;line-height:1;">📋</span>'+
-    '<span style="font-size:8px;color:#6c63ff;font-weight:700;letter-spacing:-.3px;">시간표</span>'+
+    '<div class="cal-gutter" onclick="openBranchSchedModal()" style="display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;user-select:none;border:1px solid #6c63ff55;border-radius:6px;margin:3px;">'+
+    '<span style="font-size:9px;color:#6c63ff;font-weight:700;line-height:1.5;text-align:center;">전체</span>'+
+    '<span style="font-size:9px;color:#6c63ff;font-weight:700;line-height:1.5;text-align:center;">시간표</span>'+
     '</div>'+
     dates.map(d=>{
       const isToday=toYMD(d)===todayYMD;
@@ -831,24 +831,22 @@ async function _bsLoadDay(dateStr){
   _bsSchedules=data||[];
 }
 
-/* ── 스프레드시트형 캔버스 렌더링 ── */
+/* ── 스프레드시트형 캔버스 렌더링 (단일 테이블 6~23시) ── */
 function drawBranchCanvas(dateStr){
   const canvas=document.getElementById('bsCanvas');
   const ctx=canvas.getContext('2d');
   const dpr=Math.min(window.devicePixelRatio||1,2);
 
-  // 레이아웃 상수
-  const CANVAS_W=1000,LABEL_W=90,SUM_W=44,SUM_N=4;
-  const TOTAL_SUM_W=SUM_W*SUM_N; // 176
-  const TIME_AREA_W=CANVAS_W-LABEL_W-TOTAL_SUM_W; // 734
-  const AM_S=6,AM_E=13,PM_S=12,PM_E=23;
-  const AM_N=AM_E-AM_S+1,PM_N=PM_E-PM_S+1; // 8, 12
-  const AM_CW=Math.floor(TIME_AREA_W/AM_N); // ~91
-  const PM_CW=Math.floor(TIME_AREA_W/PM_N); // ~61
-  const TITLE_H=56,SUB_H=26,TH=28,ROW_H=52,GAP=18,FOOTER_H=44;
+  // 레이아웃 상수 — 단일 테이블 6시~23시 (18열)
+  const T_START=6,T_END=23,NUM_COLS=T_END-T_START+1; // 18
+  const CANVAS_W=1060,LABEL_W=80,SUM_W=46,SUM_N=4;
+  const TOTAL_SUM_W=SUM_W*SUM_N; // 184
+  const COL_W=Math.floor((CANVAS_W-LABEL_W-TOTAL_SUM_W)/NUM_COLS); // ~44
+  const ACTUAL_TIME_W=COL_W*NUM_COLS;
+  const TITLE_H=52,SUB_H=22,TH=28,ROW_H=50,FOOTER_H=44;
   const nT=_bsTrainers.length||1;
   const TABLE_H=TH+nT*ROW_H;
-  const CANVAS_H=TITLE_H+SUB_H+TABLE_H+GAP+TABLE_H+FOOTER_H;
+  const CANVAS_H=TITLE_H+SUB_H+TABLE_H+FOOTER_H;
 
   canvas.width=CANVAS_W*dpr;canvas.height=CANVAS_H*dpr;
   canvas.style.width=CANVAS_W+'px';canvas.style.height=CANVAS_H+'px';
@@ -861,168 +859,123 @@ function drawBranchCanvas(dateStr){
   const dateLabel=`${mo}/${da}(${BS_DAYS[dow]})`;
   document.getElementById('bsSubtitle').textContent=`${gymLoc}점 · ${dateLabel} · 트레이너 ${_bsTrainers.length}명`;
 
-  // 셀 색상
-  const CELL_COLORS={PT:'#ffffff',SPT:'#ede8ff',업무:'#ddeeff',청소:'#e4ffe4',홍보:'#ffe4f0',식사:'#ffd6d6'};
+  // PT 제외 셀 배경색 (PT는 항상 배경 없음)
+  const CELL_BG={SPT:'#ede8ff',업무:'#ddeeff',청소:'#e4ffe4',홍보:'#ffe4f0',식사:'#ffd6d6'};
   const FONT=`'Apple SD Gothic Neo','Noto Sans KR',sans-serif`;
+
+  // 회원명 정리: 뒷자리 숫자 제거 후 최대 3자
+  function cleanName(raw){return(raw||'').replace(/\d+$/,'').trim().slice(0,3);}
 
   // ── 흰 배경 ──
   ctx.fillStyle='#ffffff';ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
 
   // ── 제목 ──
-  ctx.fillStyle='#111111';ctx.font=`bold 22px ${FONT}`;ctx.textAlign='center';
-  ctx.fillText(`베라짐 ${gymLoc}점 ${dateLabel} PT팀 데일리차트`,CANVAS_W/2,TITLE_H-14);
-  ctx.fillStyle='#555';ctx.font=`11px ${FONT}`;
-  ctx.fillText('업무 우선순위 : 미팅 → 수업 → 식사 → 청소 → 홍보 → PT',CANVAS_W/2,TITLE_H+10);
+  ctx.fillStyle='#111';ctx.font=`bold 20px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText(`베라짐 ${gymLoc}점 ${dateLabel} PT팀 데일리차트`,CANVAS_W/2,TITLE_H-10);
+  ctx.fillStyle='#666';ctx.font=`10px ${FONT}`;
+  ctx.fillText('업무 우선순위 : 미팅 → 수업 → 식사 → 청소 → 홍보 → PT',CANVAS_W/2,TITLE_H+8);
 
-  // ── 테이블 그리기 함수 ──
-  function drawTable(tableY,startH,endH,colW,sectionLabel){
-    const numCols=endH-startH+1;
-    const tableW=LABEL_W+numCols*colW+TOTAL_SUM_W;
+  const tableY=TITLE_H+SUB_H;
 
-    // 섹션 라벨 셀 (왼쪽 상단)
-    ctx.fillStyle='#f0f0f0';ctx.fillRect(0,tableY,LABEL_W,TH);
-    ctx.fillStyle='#333';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
-    ctx.fillText(sectionLabel,LABEL_W/2,tableY+TH/2+4);
+  // ── 헤더 배경 ──
+  ctx.fillStyle='#f0f0f0';ctx.fillRect(0,tableY,LABEL_W,TH);       // 이름셀
+  ctx.fillStyle='#f5f5f5';ctx.fillRect(LABEL_W,tableY,ACTUAL_TIME_W,TH); // 시간셀
 
-    // 헤더 행 배경
-    ctx.fillStyle='#f5f5f5';ctx.fillRect(LABEL_W,tableY,numCols*colW,TH);
+  // ── 시간 헤더 + 수직선 (시간 사이) ──
+  for(let i=0;i<NUM_COLS;i++){
+    const h=T_START+i;
+    const x=LABEL_W+i*COL_W;
+    // 시간 라벨
+    ctx.fillStyle='#333';ctx.font=`bold 10px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(`${h}시`,x+COL_W/2,tableY+TH/2+4);
+    // 시간 사이 세로선 (모든 컬럼 왼쪽, 명확하게)
+    ctx.strokeStyle='#bbb';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(x,tableY);ctx.lineTo(x,tableY+TABLE_H);ctx.stroke();
+  }
+  // 타임존 마지막 오른쪽 선
+  const timeEndX=LABEL_W+ACTUAL_TIME_W;
+  ctx.strokeStyle='#bbb';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(timeEndX,tableY);ctx.lineTo(timeEndX,tableY+TABLE_H);ctx.stroke();
 
-    // 시간 헤더 셀
-    for(let i=0;i<numCols;i++){
-      const h=startH+i;
-      const x=LABEL_W+i*colW;
-      const lbl=`${h}시`;
-      ctx.fillStyle='#222';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
-      ctx.fillText(lbl,x+colW/2,tableY+TH/2+4);
-      // 수직 구분선
-      ctx.strokeStyle='#bbb';ctx.lineWidth=0.5;
-      ctx.beginPath();ctx.moveTo(x,tableY);ctx.lineTo(x,tableY+TABLE_H);ctx.stroke();
-    }
+  // ── 요약열 헤더 (SPT PT NS PT합계) ──
+  const sumLabels=['SPT','PT','NS','PT합계'];
+  const sumBgs=['#e8d5ff','#c8e0ff','#ffd5d5','#ffeb9c'];
+  const sumFg=['#5b21b6','#1e40af','#b91c1c','#374151'];
+  sumLabels.forEach((lbl,si)=>{
+    const sx=timeEndX+si*SUM_W;
+    ctx.fillStyle=sumBgs[si];ctx.fillRect(sx,tableY,SUM_W,TH);
+    ctx.fillStyle=sumFg[si];ctx.font=`bold 9px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(lbl,sx+SUM_W/2,tableY+TH/2+4);
+    // 요약열 사이 세로선
+    ctx.strokeStyle='#bbb';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(sx,tableY);ctx.lineTo(sx,tableY+TABLE_H);ctx.stroke();
+  });
+  // 마지막 오른쪽 선
+  ctx.beginPath();ctx.moveTo(CANVAS_W,tableY);ctx.lineTo(CANVAS_W,tableY+TABLE_H);ctx.stroke();
 
-    // 요약 열 헤더
-    const sumLabels=['SPT','PT','NS','PT합계'];
-    const sumBgs=['#e8d5ff','#c8e0ff','#ffd5d5','#ffeb9c'];
-    const sumFg=['#5b21b6','#1e40af','#b91c1c','#374151'];
-    sumLabels.forEach((lbl,si)=>{
-      const sx=LABEL_W+numCols*colW+si*SUM_W;
-      ctx.fillStyle=sumBgs[si];ctx.fillRect(sx,tableY,SUM_W,TH);
-      ctx.fillStyle=sumFg[si];ctx.font=`bold 10px ${FONT}`;ctx.textAlign='center';
-      ctx.fillText(lbl,sx+SUM_W/2,tableY+TH/2+4);
-      ctx.strokeStyle='#bbb';ctx.lineWidth=0.5;
-      ctx.beginPath();ctx.moveTo(sx,tableY);ctx.lineTo(sx,tableY+TABLE_H);ctx.stroke();
-    });
-    // 마지막 요약열 오른쪽 선
-    ctx.beginPath();ctx.moveTo(CANVAS_W,tableY);ctx.lineTo(CANVAS_W,tableY+TABLE_H);ctx.stroke();
+  // ── 트레이너 행 ──
+  _bsTrainers.forEach((trainer,ti)=>{
+    const rowY=tableY+TH+ti*ROW_H;
+    // 행 배경 교번
+    ctx.fillStyle=ti%2===0?'#fafafa':'#f3f5f9';
+    ctx.fillRect(0,rowY,timeEndX,ROW_H);
+    // 요약열 흰 배경 (수기 작성용 공백)
+    ctx.fillStyle='#ffffff';ctx.fillRect(timeEndX,rowY,TOTAL_SUM_W,ROW_H);
+    // 행 하단 구분선
+    ctx.strokeStyle='#ccc';ctx.lineWidth=0.5;
+    ctx.beginPath();ctx.moveTo(0,rowY+ROW_H);ctx.lineTo(CANVAS_W,rowY+ROW_H);ctx.stroke();
 
-    // 트레이너 행
-    _bsTrainers.forEach((trainer,ti)=>{
-      const rowY=tableY+TH+ti*ROW_H;
-      // 행 배경 (교번)
-      ctx.fillStyle=ti%2===0?'#fafafa':'#f3f5f9';
-      ctx.fillRect(0,rowY,CANVAS_W,ROW_H);
-      // 행 하단 구분선
-      ctx.strokeStyle='#ddd';ctx.lineWidth=0.5;
-      ctx.beginPath();ctx.moveTo(0,rowY+ROW_H);ctx.lineTo(CANVAS_W,rowY+ROW_H);ctx.stroke();
+    // 트레이너 이름
+    ctx.fillStyle='#111';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(trainer.name,LABEL_W/2,rowY+ROW_H/2+4);
 
-      // 트레이너 이름 셀
-      ctx.fillStyle='#111';ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';
-      ctx.fillText(trainer.name,LABEL_W/2,rowY+ROW_H/2+4);
+    // 세션 셀
+    for(let i=0;i<NUM_COLS;i++){
+      const h=T_START+i;
+      const cellX=LABEL_W+i*COL_W;
+      const sess=_bsSchedules.find(s=>s.trainer_id===trainer.id&&parseInt(s.start_time)===h);
+      if(!sess)continue;
 
-      // 해당 시간 이벤트 셀
-      for(let i=0;i<numCols;i++){
-        const h=startH+i;
-        const cellX=LABEL_W+i*colW;
-        // 이 트레이너, 이 시간에 시작하는 세션 (여러 개 있을 수 있으면 첫 번째)
-        const sess=_bsSchedules.find(s=>
-          s.trainer_id===trainer.id&&
-          parseInt(s.start_time)===h
-        );
-        if(sess){
-          // 셀 배경색
-          let bg=CELL_COLORS[sess.type]||'#f0f0f0';
-          if(sess.status==='noshow')bg='#ffe0e0';
-          ctx.fillStyle=bg;ctx.fillRect(cellX+1,rowY+1,colW-2,ROW_H-2);
-          // 텍스트
-          ctx.fillStyle=sess.status==='noshow'?'#999':'#111';
-          const memName=sess.members?.name||'';
-          const shortName=memName.length>4?memName.slice(0,4)+'…':memName;
-          ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
-          if(sess.type==='PT'||sess.type==='SPT'){
-            const used=(sess.pt_products?.total_sessions||0)-(sess.pt_products?.remaining_sessions||0);
-            const total=sess.pt_products?.total_sessions||0;
-            ctx.fillText(shortName||sess.type,cellX+colW/2,rowY+15);
-            ctx.fillStyle='#555';ctx.font=`9px ${FONT}`;
-            ctx.fillText(`${sess.type}${used}/${total}`,cellX+colW/2,rowY+27);
-          }else{
-            ctx.fillText(sess.type,cellX+colW/2,rowY+ROW_H/2+4);
-          }
-          // 노쇼 마크
-          if(sess.status==='noshow'){
-            ctx.fillStyle='#e55';ctx.font=`bold 8px ${FONT}`;
-            ctx.fillText('NS',cellX+colW-10,rowY+10);
-          }
-          // 완료 체크
-          if(sess.status==='completed'){
-            ctx.fillStyle='#22c55e';ctx.font=`bold 9px ${FONT}`;
-            ctx.fillText('✓',cellX+colW-9,rowY+10);
-          }
-        }
+      // PT는 배경 없음 / 나머지는 타입별 색
+      if(sess.type!=='PT'){
+        ctx.fillStyle=CELL_BG[sess.type]||'#f0f0f0';
+        ctx.fillRect(cellX+1,rowY+1,COL_W-2,ROW_H-2);
       }
 
-      // 요약열
-      const tScheds=_bsSchedules.filter(s=>s.trainer_id===trainer.id);
-      const sptC=tScheds.filter(s=>s.type==='SPT').length;
-      const ptC=tScheds.filter(s=>s.type==='PT').length;
-      const nsC=tScheds.filter(s=>s.status==='noshow').length;
-      const totC=ptC+sptC;
-      [sptC,ptC,nsC,totC].forEach((val,si)=>{
-        const sx=LABEL_W+numCols*colW+si*SUM_W;
-        if(val>0){
-          ctx.fillStyle=sumFg[si];ctx.font=`bold 13px ${FONT}`;ctx.textAlign='center';
-          ctx.fillText(val,sx+SUM_W/2,rowY+ROW_H/2+5);
-        }
-      });
+      // 텍스트 (가운데 정렬)
+      ctx.textAlign='center';
+      if(sess.type==='PT'||sess.type==='SPT'){
+        const name=cleanName(sess.members?.name||'');
+        const used=(sess.pt_products?.total_sessions||0)-(sess.pt_products?.remaining_sessions||0);
+        const total=sess.pt_products?.total_sessions||0;
+        ctx.fillStyle='#111';ctx.font=`bold 11px ${FONT}`;
+        ctx.fillText(name||sess.type,cellX+COL_W/2,rowY+17);
+        ctx.fillStyle='#444';ctx.font=`9px ${FONT}`;
+        ctx.fillText(`PT${used}/${total}`,cellX+COL_W/2,rowY+30);
+      }else{
+        ctx.fillStyle='#333';ctx.font=`bold 10px ${FONT}`;
+        ctx.fillText(sess.type,cellX+COL_W/2,rowY+ROW_H/2+4);
+      }
+    }
+
+    // 요약열 수직선 재그리기 (행마다 선이 지워지지 않도록)
+    sumLabels.forEach((_,si)=>{
+      const sx=timeEndX+si*SUM_W;
+      ctx.strokeStyle='#bbb';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(sx,rowY);ctx.lineTo(sx,rowY+ROW_H);ctx.stroke();
     });
-
-    // 외곽선
-    ctx.strokeStyle='#999';ctx.lineWidth=1.5;
-    ctx.strokeRect(0,tableY,CANVAS_W,TABLE_H);
-    // 트레이너 라벨열 오른쪽 선
-    ctx.beginPath();ctx.moveTo(LABEL_W,tableY);ctx.lineTo(LABEL_W,tableY+TABLE_H);ctx.stroke();
-    // 헤더 하단선
-    ctx.strokeStyle='#aaa';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(0,tableY+TH);ctx.lineTo(CANVAS_W,tableY+TH);ctx.stroke();
-  }
-
-  // ── 오전 테이블 ──
-  const amY=TITLE_H+SUB_H;
-  drawTable(amY,AM_S,AM_E,AM_CW,'오전 시간');
-
-  // ── 오후 테이블 ──
-  const pmY=amY+TABLE_H+GAP;
-  drawTable(pmY,PM_S,PM_E,PM_CW,'오후 시간');
-
-  // ── 합계 행 (오후 테이블 하단) ──
-  const sumRowY=pmY+TABLE_H;
-  ctx.fillStyle='#fffde7';ctx.fillRect(0,sumRowY,CANVAS_W,TH);
-  ctx.strokeStyle='#aaa';ctx.lineWidth=1;
-  ctx.strokeRect(0,sumRowY,CANVAS_W,TH);
-  ctx.fillStyle='#555';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
-  ctx.fillText('합계',LABEL_W/2,sumRowY+TH/2+4);
-  const totSPT=_bsSchedules.filter(s=>s.type==='SPT').length;
-  const totPT=_bsSchedules.filter(s=>s.type==='PT').length;
-  const totNS=_bsSchedules.filter(s=>s.status==='noshow').length;
-  const totAll=totPT+totSPT;
-  const sumFgC=['#5b21b6','#1e40af','#b91c1c','#374151'];
-  const PM_N_CALC=PM_E-PM_S+1;
-  [totSPT,totPT,totNS,totAll].forEach((val,si)=>{
-    const sx=LABEL_W+PM_N_CALC*(Math.floor(TIME_AREA_W/PM_N_CALC))+si*SUM_W;
-    ctx.fillStyle=sumFgC[si];ctx.font=`bold 14px ${FONT}`;
-    ctx.fillText(val,sx+SUM_W/2,sumRowY+TH/2+5);
+    ctx.beginPath();ctx.moveTo(CANVAS_W,rowY);ctx.lineTo(CANVAS_W,rowY+ROW_H);ctx.stroke();
   });
 
+  // ── 외곽선 & 라벨열 오른쪽 선 & 헤더 하단선 ──
+  ctx.strokeStyle='#888';ctx.lineWidth=1.5;
+  ctx.strokeRect(0,tableY,CANVAS_W,TABLE_H);
+  ctx.beginPath();ctx.moveTo(LABEL_W,tableY);ctx.lineTo(LABEL_W,tableY+TABLE_H);ctx.stroke();
+  ctx.strokeStyle='#999';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,tableY+TH);ctx.lineTo(CANVAS_W,tableY+TH);ctx.stroke();
+
   // ── 예고 메모 (footer) ──
-  const footerY=sumRowY+TH+8;
+  const footerY=tableY+TABLE_H+8;
   const scheduled=_bsSchedules.filter(s=>s.status==='scheduled'&&(s.type==='PT'||s.type==='SPT'));
   if(scheduled.length){
     const byTrainer=_bsTrainers.map(t=>{
@@ -1032,16 +985,14 @@ function drawBranchCanvas(dateStr){
         const h=parseInt(s.start_time);
         const used=(s.pt_products?.total_sessions||0)-(s.pt_products?.remaining_sessions||0);
         const tot=s.pt_products?.total_sessions||0;
-        return`${h}시 ${s.members?.name||''}PT${used}/${tot}`;
+        return`${h}시 ${cleanName(s.members?.name||'')}PT${used}/${tot}`;
       });
       return`${t.name} - ${parts.join(', ')}`;
     }).filter(Boolean);
-    ctx.fillStyle='#444';ctx.font=`11px ${FONT}`;ctx.textAlign='center';
-    // 2줄로 나눠서 표시
-    const line1=byTrainer.slice(0,Math.ceil(byTrainer.length/2)).join(' | ');
-    const line2=byTrainer.slice(Math.ceil(byTrainer.length/2)).join(' | ');
-    ctx.fillText(line1,CANVAS_W/2,footerY+14);
-    if(line2)ctx.fillText(line2,CANVAS_W/2,footerY+30);
+    ctx.fillStyle='#444';ctx.font=`10px ${FONT}`;ctx.textAlign='center';
+    const half=Math.ceil(byTrainer.length/2);
+    ctx.fillText(byTrainer.slice(0,half).join(' | '),CANVAS_W/2,footerY+14);
+    if(byTrainer.length>half)ctx.fillText(byTrainer.slice(half).join(' | '),CANVAS_W/2,footerY+28);
   }
 }
 

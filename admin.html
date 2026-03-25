@@ -151,7 +151,8 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .img-upload-zone img { max-height:120px; border-radius:8px; object-fit:cover; }
 
 /* ── 일정 탭 ─────────────────────────────────────────── */
-#tab-schedule { padding:0; }
+#tab-schedule { padding:0; overflow:hidden; }
+/* 필터 + 날짜이동 */
 .sc-ctrl { background:#111108; border-bottom:1px solid #2a2518; padding:10px 14px; display:flex; align-items:center; gap:10px; position:sticky; top:101px; z-index:97; }
 .sc-trainer-sel { background:#161610; border:1.5px solid #2a2518; border-radius:10px; padding:8px 12px; font-size:13px; color:#ccc; outline:none; font-family:inherit; cursor:pointer; flex:1; min-width:130px; -webkit-appearance:none; }
 .sc-trainer-sel:focus { border-color:#c9a84c66; }
@@ -163,28 +164,26 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .sc-date-range { font-size:13px; font-weight:700; color:#c9a84c; letter-spacing:.3px; }
 .sc-nav-arrow { background:#1a1a14; border:1px solid #2a251888; border-radius:8px; color:#c9a84c; font-size:13px; padding:6px 12px; cursor:pointer; font-weight:700; font-family:inherit; }
 .sc-nav-arrow:active { opacity:.7; }
-/* Calendar table */
-.sc-cal-scroll { overflow-y:auto; overflow-x:hidden; height:calc(100dvh - 57px - 44px - 44px - 44px); }
-table.sc-cal { width:100%; border-collapse:collapse; table-layout:fixed; }
-table.sc-cal colgroup col.sc-tc { width:44px; }
-table.sc-cal colgroup col.sc-dc { width:calc((100% - 44px)/4); }
-table.sc-cal thead th { background:#0d0d08; padding:7px 2px; text-align:center; border-bottom:1.5px solid #2a2518; position:sticky; top:0; z-index:10; }
-table.sc-cal thead th.sc-thdr { width:44px; border-right:1px solid #2a251844; }
-.sc-dhdr { font-size:11px; font-weight:600; color:#555; line-height:1.4; }
-.sc-dhdr.today { color:#c9a84c; }
-.sc-dhdr .dname { font-size:10px; font-weight:500; margin-bottom:1px; }
-.sc-dhdr .ddate { font-size:13px; font-weight:800; }
-td.sc-tl { width:44px; font-size:10px; color:#444; text-align:right; padding:0 5px 0 0; vertical-align:top; padding-top:3px; height:44px; border-right:1px solid #2a251833; white-space:nowrap; }
-td.sc-slot { height:44px; border:.5px solid transparent; border-bottom:.5px solid #2a251818; vertical-align:top; transition:background .1s; position:relative; }
-td.sc-slot.sc-scheduled { cursor:pointer; }
-td.sc-slot.sc-completed { cursor:pointer; opacity:.55; }
-td.sc-slot.sc-noshow { cursor:pointer; opacity:.55; }
-td.sc-slot.sc-cancelled { cursor:pointer; opacity:.3; }
-td.sc-slot.sc-off { background:#070704; cursor:default; }
-td.sc-slot.sc-today { background:rgba(201,168,76,.04); }
-.sc-slot-inner { padding:3px 4px; height:100%; overflow:hidden; display:flex; flex-direction:column; justify-content:center; }
-.sc-slot-name { font-size:11px; font-weight:700; color:#ccc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3; }
-.sc-slot-lbl { font-size:9px; color:#777; margin-top:1px; white-space:nowrap; }
+/* 날짜 헤더 행 (sticky) */
+.sc-date-row { display:flex; background:#111108; border-bottom:2px solid #2a2518; padding:4px 0; position:sticky; top:189px; z-index:95; }
+.sc-gutter { width:52px; flex-shrink:0; border-right:1px solid #2a251844; }
+.sc-day-hdr { flex:1; text-align:center; padding:4px 2px; }
+.sc-dhdr-name { font-size:10px; color:#6a5830; margin-bottom:1px; text-transform:uppercase; }
+.sc-dhdr-num { font-size:18px; font-weight:700; color:#c0b8a8; display:inline-block; width:34px; height:34px; line-height:34px; text-align:center; border-radius:50%; }
+.sc-day-hdr.today .sc-dhdr-num { color:#000; background:#c9a84c; }
+/* 그리드 스크롤 */
+.sc-grid-scroll { overflow-y:auto; -webkit-overflow-scrolling:touch; height:calc(100dvh - 57px - 44px - 44px - 44px - 52px); }
+.sc-grid { display:grid; grid-template-columns:52px repeat(4,1fr); }
+.sc-time-col { position:relative; }
+.sc-time-label { position:absolute; font-size:10px; font-weight:500; color:#6a5830; text-align:right; right:6px; transform:translateY(-50%); line-height:1.2; pointer-events:none; white-space:nowrap; }
+.sc-day-col { position:relative; border-left:1px solid #2a251833; }
+.sc-gridline-hr { position:absolute; left:0; right:0; height:1px; background:#2a251844; pointer-events:none; }
+.sc-gridline-half { position:absolute; left:4px; right:0; height:0; border-top:1px dashed #2a251822; pointer-events:none; }
+.sc-now-line { position:absolute; left:0; right:0; height:2px; background:#c9a84c; z-index:3; pointer-events:none; }
+.sc-now-line::before { content:''; position:absolute; left:-3px; top:-3px; width:8px; height:8px; background:#c9a84c; border-radius:50%; }
+.sc-event { position:absolute; left:2px; right:2px; border-radius:6px; padding:3px 4px; overflow:hidden; cursor:pointer; z-index:2; box-sizing:border-box; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.sc-ev-title { font-size:11px; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.4; width:100%; text-align:center; }
+.sc-ev-sub { font-size:10px; color:rgba(255,255,255,.85); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; text-align:center; font-weight:600; }
 /* List view */
 .sc-list { padding:14px; }
 .sc-dg { margin-bottom:20px; }
@@ -203,13 +202,13 @@ td.sc-slot.sc-today { background:rgba(201,168,76,.04); }
 .sc-st-completed { background:#22c55e22; border:1px solid #22c55e44; color:#4ade80; }
 .sc-st-noshow { background:#f59e0b22; border:1px solid #f59e0b44; color:#fbbf24; }
 .sc-st-cancelled { background:#33333322; border:1px solid #33333344; color:#666; }
-/* Action buttons in list */
+/* Action buttons */
 .sc-btn { border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; border:1px solid; transition:all .15s; }
 .sc-btn-green { background:#22c55e22; border-color:#22c55e55; color:#4ade80; }
 .sc-btn-amber { background:#f59e0b22; border-color:#f59e0b55; color:#fbbf24; }
 .sc-btn-red { background:#f8717122; border-color:#f8717155; color:#f87171; }
 .sc-btn-gold { background:#c9a84c22; border-color:#c9a84c55; color:#c9a84c; }
-/* Info modal detail */
+/* Info modal */
 .sc-detail { background:#0f0f0a; border:1px solid #2a2518; border-radius:10px; padding:12px 14px; margin-bottom:14px; }
 .sc-dr { display:flex; gap:8px; margin-bottom:5px; font-size:13px; align-items:flex-start; }
 .sc-dr:last-child { margin-bottom:0; }
@@ -313,24 +312,9 @@ td.sc-slot.sc-today { background:rgba(201,168,76,.04); }
   </div>
   <!-- 캘린더 -->
   <div id="scCalView">
-    <div id="scNoTrainer" style="text-align:center;padding:60px 20px;color:#444;font-size:14px;display:none;">
-      트레이너를 선택하면<br>4일 캘린더를 확인할 수 있습니다<br><br>
-      <span style="font-size:12px;color:#333;">전체 일정은 [목록] 탭에서 확인하세요</span>
-    </div>
-    <div class="sc-cal-scroll" id="scCalScroll">
-      <table class="sc-cal" id="scCalTable">
-        <colgroup><col class="sc-tc"><col class="sc-dc"><col class="sc-dc"><col class="sc-dc"><col class="sc-dc"></colgroup>
-        <thead>
-          <tr>
-            <th class="sc-thdr"></th>
-            <th><div class="sc-dhdr" id="scDh0"></div></th>
-            <th><div class="sc-dhdr" id="scDh1"></div></th>
-            <th><div class="sc-dhdr" id="scDh2"></div></th>
-            <th><div class="sc-dhdr" id="scDh3"></div></th>
-          </tr>
-        </thead>
-        <tbody id="scCalBody"></tbody>
-      </table>
+    <div id="scDateRow" class="sc-date-row"><div class="sc-gutter"></div></div>
+    <div class="sc-grid-scroll" id="scGridScroll">
+      <div class="sc-grid" id="scGrid"></div>
     </div>
   </div>
   <!-- 목록 -->
@@ -1410,53 +1394,74 @@ async function scRefresh(){
   if(scView==='cal')scRenderCal();else scRenderList();
 }
 
+const SC_CAL_START=6,SC_CAL_END=23,SC_CAL_PX=56;
+function scTimeToY(hh,mm){return((hh-SC_CAL_START)+mm/60)*SC_CAL_PX;}
+function scTotalPx(){return(SC_CAL_END-SC_CAL_START+1)*SC_CAL_PX;}
+
 function scRenderCal(){
-  const tbl=document.getElementById('scCalTable');
-  const noMsg=document.getElementById('scNoTrainer');
-  const scroll=document.getElementById('scCalScroll');
-  if(!scTrainerId){tbl.style.display='none';noMsg.style.display='';scroll.style.display='none';return;}
-  tbl.style.display='';noMsg.style.display='none';scroll.style.display='';
+  const TOTAL=scTotalPx();
   const days=[0,1,2,3].map(i=>scAddDays(scStart,i));
   const todayISO=scYMD(new Date());
-  days.forEach((d,i)=>{
-    const iso=scYMD(d);const isT=iso===todayISO;
-    const el=document.getElementById(`scDh${i}`);
-    el.className='sc-dhdr'+(isT?' today':'');
-    el.innerHTML=`<div class="dname">${SC_DAY[d.getDay()]}</div><div class="ddate">${d.getMonth()+1}/${d.getDate()}</div>`;
-  });
-  const slotMap={};
-  scData.forEach(s=>{slotMap[`${s.sched_date}T${s.start_time.slice(0,5)}`]=s;});
-  const occ={};
-  const tbody=document.getElementById('scCalBody');tbody.innerHTML='';
-  SC_SLOTS.forEach((time,ti)=>{
-    const tr=document.createElement('tr');
-    const tdT=document.createElement('td');tdT.className='sc-tl';tdT.textContent=time.endsWith(':00')?time:'';tr.appendChild(tdT);
-    days.forEach((day,di)=>{
-      if(occ[`${di}:${ti}`])return;
-      const iso=scYMD(day);const sched=slotMap[`${iso}T${time}`];const isT=iso===todayISO;
-      const td=document.createElement('td');
-      if(sched){
-        const dur=scDurMin(sched.start_time,sched.end_time);
-        const span=Math.max(1,Math.ceil(dur/30));
-        if(span>1){td.rowSpan=span;for(let k=1;k<span;k++)occ[`${di}:${ti+k}`]=true;}
-        const sType=sched.type||'PT';const bg=SC_TC[sType]||'#6c63ff';
-        const memName=sched.members?.name||'';
-        let stxt='';
-        if(sType==='PT'&&sched.pt_products){const u=(sched.pt_products.total_sessions||0)-(sched.pt_products.remaining_sessions||0);stxt=` ${u}/${sched.pt_products.total_sessions||0}`;}
-        const line1=memName||sType;const line2=memName?`${sType}${stxt}`:(SC_SL[sched.status]||sched.status);
-        const noshow=sched.status==='noshow';const statusBg=noshow?'#f59e0b':bg;
-        td.className=`sc-slot sc-${sched.status}${isT?' sc-today':''}`;
-        td.style.borderLeft=`3px solid ${statusBg}`;
-        td.style.background=`${statusBg}22`;
-        if(sched.status==='cancelled')td.style.display='none';// hide cancelled
-        td.innerHTML=`<div class="sc-slot-inner"><div class="sc-slot-name">${line1}${sched.status!=='scheduled'?'<span style="font-size:9px;margin-left:3px;opacity:.7;">✓</span>':''}</div><div class="sc-slot-lbl">${line2}</div></div>`;
-        td.onclick=()=>scOpenInfo(sched);
-      }else{td.className=`sc-slot${isT?' sc-today':''}`;}
-      tr.appendChild(td);
+  const now=new Date(),nowH=now.getHours(),nowM=now.getMinutes();
+
+  // 날짜 헤더
+  document.getElementById('scDateRow').innerHTML='<div class="sc-gutter"></div>'+days.map(d=>{
+    const isT=scYMD(d)===todayISO;
+    return`<div class="sc-day-hdr${isT?' today':''}"><div class="sc-dhdr-name">${SC_DAY[d.getDay()]}</div><div class="sc-dhdr-num">${d.getDate()}</div></div>`;
+  }).join('');
+
+  // 시간 컬럼
+  let timeCol=`<div class="sc-time-col" style="height:${TOTAL}px">`;
+  for(let h=SC_CAL_START;h<=SC_CAL_END;h++){
+    const y=scTimeToY(h,0);
+    const lbl=h<12?`오전 ${h}시`:h===12?`오후 12시`:`오후 ${h-12}시`;
+    timeCol+=`<div class="sc-time-label" style="top:${y}px">${lbl}</div>`;
+  }
+  timeCol+=`<div style="position:absolute;top:${TOTAL}px;width:1px;height:1px"></div></div>`;
+
+  // 날짜 컬럼
+  const dayCols=days.map(d=>{
+    const ymd=scYMD(d),isT=ymd===todayISO;
+    const dayEvents=scData.filter(s=>s.sched_date===ymd&&s.status!=='cancelled');
+    let col=`<div class="sc-day-col" style="height:${TOTAL}px">`;
+    // 그리드 라인
+    for(let h=SC_CAL_START;h<=SC_CAL_END;h++){
+      const y0=scTimeToY(h,0),y30=scTimeToY(h,30);
+      col+=`<div class="sc-gridline-hr" style="top:${y0}px"></div>`;
+      col+=`<div class="sc-gridline-half" style="top:${y30}px"></div>`;
+    }
+    col+=`<div class="sc-gridline-hr" style="top:${TOTAL}px"></div>`;
+    // 이벤트
+    dayEvents.forEach(s=>{
+      const[sh,sm]=s.start_time.split(':').map(Number);
+      let eh,em;if(s.end_time){[eh,em]=s.end_time.split(':').map(Number);}else{eh=sh+1;em=sm;}
+      const top=scTimeToY(sh,sm);
+      const dur=(eh-sh)+(em-sm)/60;
+      const height=Math.max(dur*SC_CAL_PX,22);
+      const sType=s.type||'PT';
+      let evBg,evOp='1',evExtra='';
+      if(s.status==='noshow'){evBg='#f59e0b';evOp='0.5';evExtra='<div style="position:absolute;top:2px;right:4px;font-size:9px;opacity:.8">✓</div>';}
+      else if(s.status==='completed'){evBg=SC_TC[sType]||'#6c63ff';evOp='0.45';evExtra='<div style="position:absolute;top:2px;right:4px;font-size:9px;opacity:.8">✓</div>';}
+      else{evBg=SC_TC[sType]||'#6c63ff';}
+      const memName=s.members?.name||'';
+      const trainerName=s.trainers?.name||'';
+      let stxt='';
+      if(sType==='PT'&&s.pt_products){const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);stxt=` ${u}/${s.pt_products.total_sessions||0}`;}
+      // 전체 트레이너 시: 이름+트레이너명 / 개별 선택 시: 이름+유형+회차
+      const line1=memName||sType;
+      const line2=scTrainerId?(memName?`${sType}${stxt}`:''):(trainerName||'');
+      const sid=s.id;
+      col+=`<div class="sc-event" style="background:${evBg}dd;opacity:${evOp};top:${top}px;height:${height}px;" onclick="event.stopPropagation();scOpenInfo(scData.find(x=>x.id==='${sid}'))">${evExtra}<div class="sc-ev-title">${line1}</div>${line2?`<div class="sc-ev-sub">${line2}</div>`:''}</div>`;
     });
-    tbody.appendChild(tr);
-  });
-  if(scroll.scrollTop===0)setTimeout(()=>{scroll.scrollTop=(9-6)*2*44-4;},60);
+    // 현재 시각 표시선
+    if(isT){const ny=scTimeToY(nowH,nowM);if(ny>=0&&ny<=TOTAL)col+=`<div class="sc-now-line" style="top:${ny}px"></div>`;}
+    col+='</div>';
+    return col;
+  }).join('');
+
+  document.getElementById('scGrid').innerHTML=timeCol+dayCols;
+  const scroll=document.getElementById('scGridScroll');
+  if(scroll.scrollTop===0)setTimeout(()=>{scroll.scrollTop=Math.max(0,scTimeToY(Math.max(SC_CAL_START,nowH-1),0));},80);
 }
 
 function scRenderList(){

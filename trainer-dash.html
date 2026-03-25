@@ -433,7 +433,7 @@ async function loadLogs() {
 
   // ① 로그 기본정보 먼저 로드 (빠름 ~200ms) → 즉시 렌더
   const { data: logs, error } = await db.from('workout_logs')
-    .select('id,session_date,notes,member_id,members(name)')
+    .select('id,session_date,notes,member_id,is_noshow,members(name)')
     .eq('trainer_id', me.id).eq('is_deleted', false)
     .order('session_date', { ascending: false }).limit(50);
   if (await handleDbError(error, '수업일지 불러오기 실패')) return;
@@ -471,23 +471,28 @@ function renderLogCards(containerId, logs, showMember) {
 
   wrap.innerHTML = logs.map(log => {
     const exs = log.workout_log_exercises || [];
+    const isNoshow = log.is_noshow === true;
     const dateStr = new Date(log.session_date).toLocaleDateString('ko-KR', { month:'long', day:'numeric', weekday:'short' });
     return `
-      <div class="log-card">
+      <div class="log-card" style="${isNoshow ? 'opacity:0.6;border-color:#f59e0b44;' : ''}">
         <div class="log-header">
           <span class="log-date">${dateStr}</span>
+          ${isNoshow ? `<span style="background:#f59e0b22;border:1px solid #f59e0b66;color:#f59e0b;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;margin-left:6px;">노쇼</span>` : ''}
           ${showMember ? `<span class="log-member">${log.members?.name || '-'}</span>` : ''}
         </div>
-        ${exs.length ? `<div class="log-exercises">${exs.map(e => {
-          const nm = e.custom_name || '운동';
-          const setInfo = e.sets_data?.length
-            ? `${e.sets_data.length}세트`
-            : (e.sets ? `${e.sets}×${e.reps}` : '');
-          return `<span class="ex-tag">${nm}${setInfo ? ' ' + setInfo : ''}</span>`;
-        }).join('')}</div>` : ''}
+        ${isNoshow
+          ? `<div style="color:#6a6a8a;font-size:13px;padding:6px 0;">운동 내용 없음</div>`
+          : (exs.length ? `<div class="log-exercises">${exs.map(e => {
+              const nm = e.custom_name || '운동';
+              const setInfo = e.sets_data?.length
+                ? `${e.sets_data.length}세트`
+                : (e.sets ? `${e.sets}×${e.reps}` : '');
+              return `<span class="ex-tag">${nm}${setInfo ? ' ' + setInfo : ''}</span>`;
+            }).join('')}</div>` : '')
+        }
         ${log.notes ? `<div class="log-notes" style="margin-top:8px">${log.notes}</div>` : ''}
         <div class="log-actions">
-          <button class="btn-sm" onclick="location.href='session-write.html?log=${log.id}'">수정</button>
+          ${isNoshow ? '' : `<button class="btn-sm" onclick="location.href='session-write.html?log=${log.id}'">수정</button>`}
           <button class="btn-sm btn-danger" onclick="deleteLog('${log.id}')">삭제</button>
         </div>
       </div>`;
@@ -682,10 +687,12 @@ function renderCalGrid(dates){
       // 상태별 색상/스타일 처리
       let evBg,evOpacity='1',evExtra='';
       if(s.status==='noshow'){
-        evBg='#f59e0b';// 노쇼: 황색 고정
+        evBg='#f59e0b';// 노쇼: 황색 고정 + 어둡게 + 체크
+        evOpacity='0.5';
+        evExtra='<div style="position:absolute;top:2px;right:4px;font-size:10px;opacity:0.9">✓</div>';
       }else if(s.status==='completed'){
         evBg=TYPE_COLORS[sType]||'#6c63ff';
-        evOpacity='0.45';// 완료: 원래 색상 어둡게
+        evOpacity='0.45';// 완료: 원래 색상 어둡게 + 체크
         evExtra='<div style="position:absolute;top:2px;right:4px;font-size:10px;opacity:0.9">✓</div>';
       }else{
         evBg=TYPE_COLORS[sType]||'#6c63ff';// scheduled: 기본

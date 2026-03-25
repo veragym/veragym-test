@@ -123,26 +123,25 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,.2); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; margin-right:6px; vertical-align:middle; }
 @keyframes spin { to{transform:rotate(360deg)} }
 
-/* ──── 일정 탭 ──────────────────────────────── */
-#tab-schedule{padding:0}
-.cal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 8px}
-.cal-range-label{font-size:13px;font-weight:600;color:#e0e0e0}
-.cal-nav-btn{background:none;border:1px solid #3a3a5c;color:#aaa;border-radius:6px;padding:4px 10px;font-size:14px;cursor:pointer}
-.cal-days-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 10px 8px}
-.cal-day-col{background:#1e1e2e;border-radius:10px;padding:8px 6px;cursor:pointer;min-height:70px;transition:background .15s}
-.cal-day-col:hover{background:#2a2a3e}
-.cal-day-col.selected{background:#2a2a3e;border:1px solid #6c63ff}
-.cal-day-col.today .cal-day-num{color:#6c63ff;font-weight:700}
-.cal-day-name{font-size:10px;color:#888;text-align:center;margin-bottom:2px}
-.cal-day-num{font-size:16px;font-weight:600;color:#e0e0e0;text-align:center;margin-bottom:6px}
-.cal-event-dot{font-size:11px;line-height:1.4;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:4px;padding:1px 4px;margin-bottom:2px}
-.cal-detail{padding:10px 14px 0}
-.cal-detail-title{font-size:13px;color:#aaa;margin-bottom:8px}
-.sched-card{background:#1e1e2e;border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;border-left:4px solid #6c63ff}
-.sched-card-time{font-size:12px;color:#aaa;margin-bottom:3px}
-.sched-card-title{font-size:14px;font-weight:600;color:#e0e0e0}
-.sched-card-member{font-size:12px;color:#888;margin-top:2px}
-.cal-add-btn{background:#6c63ff;border:none;color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}
+/* ──── 일정 탭 (Google Calendar Grid) ─────── */
+#tab-schedule{padding:0;overflow:hidden}
+.cal-wrap{display:flex;flex-direction:column}
+.cal-date-row{display:flex;background:#0d1525;border-bottom:2px solid #1e3a5f66;padding:4px 0;position:sticky;top:0;z-index:10}
+.cal-gutter{width:48px;flex-shrink:0;border-right:1px solid #1e3a5f44}
+.cal-day-hdr{flex:1;text-align:center;padding:4px 2px}
+.cal-dhdr-name{font-size:10px;color:#4a6580;margin-bottom:1px;text-transform:uppercase}
+.cal-dhdr-num{font-size:18px;font-weight:700;color:#c0c8d8;display:inline-block;width:34px;height:34px;line-height:34px;text-align:center;border-radius:50%}
+.cal-day-hdr.today .cal-dhdr-num{color:#fff;background:#6c63ff}
+.cal-grid-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100svh - 165px)}
+.cal-grid{display:grid;grid-template-columns:48px repeat(4,1fr)}
+.cal-time-label{font-size:9px;color:#2a4060;text-align:right;padding:3px 5px 0 0;height:56px;box-sizing:border-box;border-right:1px solid #1e3a5f44;border-bottom:1px solid #1e3a5f22;line-height:1.2}
+.cal-slot{height:56px;border-bottom:1px solid #1e3a5f22;border-right:1px solid #1e3a5f11;position:relative;cursor:pointer;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+.cal-slot:active{background:#1a2a3a55}
+.cal-slot.past{background:#080c1488}
+.cal-slot.now-row{border-top:2px solid #6c63ff44}
+.cal-event{position:absolute;left:1px;right:1px;top:1px;bottom:1px;border-radius:4px;padding:2px 4px;overflow:hidden;cursor:pointer;z-index:2}
+.cal-event-title{font-size:10px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.cal-event-sub{font-size:9px;color:rgba(255,255,255,0.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -202,16 +201,14 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 
 <!-- ── Tab: 일정 ─────────────────────────────────────────── -->
 <div id="tab-schedule" class="tab-content">
-  <div class="cal-header">
-    <button class="cal-nav-btn" onclick="shiftWeek(-4)">&#8249;</button>
-    <span class="cal-range-label" id="calRangeLabel">불러오는 중...</span>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <button class="cal-add-btn" id="calAddBtn">+ 일정 추가</button>
-      <button class="cal-nav-btn" onclick="shiftWeek(4)">&#8250;</button>
+  <div class="cal-wrap">
+    <div class="cal-date-row" id="calDateRow">
+      <div class="cal-gutter"></div>
+    </div>
+    <div class="cal-grid-scroll" id="calGridScroll">
+      <div class="cal-grid" id="calGrid"></div>
     </div>
   </div>
-  <div class="cal-days-grid" id="calDaysCols"></div>
-  <div class="cal-detail" id="calDetail"></div>
 </div>
 
 <!-- ── Tab: 요청사항 ────────────────────────────────────────── -->
@@ -646,49 +643,81 @@ window.addEventListener('pageshow', (e) => {
   if (e.persisted && !me) init();
 });
 
-// ══════════ 일정 기능 ══════════
-let calBaseDate=new Date(),scheduleData=[],selectedCalDate=null,myMembersForSched=[],_schedEditId=null,_schedColor='#6c63ff';
-function toYMD(d){return d.toISOString().slice(0,10);}
+// ══════════ 일정 탭 – 구글캘린더 그리드 (오늘~3일 후, 고정) ══════════
+const CAL_START_H=8,CAL_END_H=23,CAL_SLOT_PX=56;
+let scheduleData=[],myMembersForSched=[],_schedEditId=null,_schedColor='#6c63ff',_midnightTimer=null;
+const DAY_KO=['일','월','화','수','목','금','토'];
+// 로컬 타임존 기준 YYYY-MM-DD (toISOString은 UTC → KST +9 시차 버그)
+function toYMD(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function fromYMD(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
 function toHM(t){return t?t.slice(0,5):'';}
-function shiftWeek(days){calBaseDate=new Date(calBaseDate);calBaseDate.setDate(calBaseDate.getDate()+days);loadScheduleView();}
+function getCalDates(){
+  const t=new Date();t.setHours(0,0,0,0);
+  return Array.from({length:4},(_,i)=>{const d=new Date(t);d.setDate(d.getDate()+i);return d;});
+}
 async function loadScheduleView(){
-  const dates=[];for(let i=0;i<4;i++){const d=new Date(calBaseDate);d.setDate(d.getDate()+i);dates.push(d);}
-  const fmt=d=>`${d.getMonth()+1}/${d.getDate()}`;
-  document.getElementById('calRangeLabel').textContent=`${fmt(dates[0])} - ${fmt(dates[3])}`;
-  const from=toYMD(dates[0]),to=toYMD(dates[3]);
-  const{data}=await db.from('schedules').select('*').gte('sched_date',from).lte('sched_date',to).order('start_time');
-  scheduleData=data||[];
-  if(!myMembersForSched.length&&me){const{data:mems}=await db.from('members').select('id,name').eq('trainer_id',me.id).eq('is_active',true).order('name');myMembersForSched=mems||[];}
-  if(!selectedCalDate||!dates.find(d=>toYMD(d)===toYMD(selectedCalDate)))selectedCalDate=dates[0];
-  renderCalDays(dates);renderCalDetail(selectedCalDate);
-  document.getElementById('calAddBtn').onclick=()=>openSchedModal(null,toYMD(selectedCalDate));
+  const dates=getCalDates();
+  if(!myMembersForSched.length&&me){
+    const{data:mems}=await db.from('members').select('id,name').eq('trainer_id',me.id).eq('is_active',true).order('name');
+    myMembersForSched=mems||[];
+  }
+  const{data,error}=await db.from('schedules').select('*').eq('trainer_id',me.id)
+    .gte('sched_date',toYMD(dates[0])).lte('sched_date',toYMD(dates[3])).order('start_time');
+  if(error){await handleDbError(error,'일정 불러오기 실패');scheduleData=[];}
+  else scheduleData=data||[];
+  renderCalGrid(dates);
+  scheduleMidnightRefresh();
 }
-const DAY_KO=['일','월','화','수','목','금','토'];
-function renderCalDays(dates){
-  const today=toYMD(new Date());
-  document.getElementById('calDaysCols').innerHTML=dates.map(d=>{
-    const ymd=toYMD(d),isToday=ymd===today,isSel=selectedCalDate&&toYMD(selectedCalDate)===ymd;
-    const events=scheduleData.filter(s=>s.sched_date===ymd);
-    const evHtml=events.slice(0,3).map(s=>`<div class="cal-event-dot" style="background:${s.color||'#6c63ff'}22;border-left:3px solid ${s.color||'#6c63ff'}">${toHM(s.start_time)} ${s.title||''}</div>`).join('');
-    return `<div class="cal-day-col${isToday?' today':''}${isSel?' selected':''}" onclick="selectCalDay('${ymd}')"><div class="cal-day-name">${DAY_KO[d.getDay()]}</div><div class="cal-day-num">${d.getDate()}</div>${evHtml}</div>`;
+function renderCalGrid(dates){
+  const todayYMD=toYMD(new Date()),nowH=new Date().getHours();
+  // ── 날짜 헤더 ──
+  document.getElementById('calDateRow').innerHTML='<div class="cal-gutter"></div>'+dates.map(d=>{
+    const isToday=toYMD(d)===todayYMD;
+    return`<div class="cal-day-hdr${isToday?' today':''}"><div class="cal-dhdr-name">${DAY_KO[d.getDay()]}</div><div class="cal-dhdr-num">${d.getDate()}</div></div>`;
   }).join('');
+  // ── 시간 슬롯 그리드 ──
+  let html='';
+  for(let h=CAL_START_H;h<=CAL_END_H;h++){
+    const lbl=h<12?`오전<br>${h}시`:h===12?`오후<br>12시`:`오후<br>${h-12}시`;
+    html+=`<div class="cal-time-label">${lbl}</div>`;
+    dates.forEach(d=>{
+      const ymd=toYMD(d),isToday=ymd===todayYMD;
+      const isPast=isToday&&h<nowH,isNow=isToday&&h===nowH;
+      const slotEvs=scheduleData.filter(s=>{
+        if(s.sched_date!==ymd)return false;
+        const sh=parseInt(s.start_time.slice(0,2));
+        const eh=s.end_time?parseInt(s.end_time.slice(0,2)):sh+1;
+        return sh===h||(sh<h&&eh>h);
+      });
+      const startT=`${String(h).padStart(2,'0')}:00`;
+      const evHtml=slotEvs.map(s=>{
+        const mem=myMembersForSched.find(m=>m.id===s.member_id);
+        const bg=s.color||'#6c63ff';
+        const isCont=parseInt(s.start_time.slice(0,2))<h;
+        return`<div class="cal-event" style="background:${bg}cc${isCont?';border-radius:0 0 4px 4px;top:0':''}" onclick="event.stopPropagation();openSchedModal('${s.id}',null,null)"><div class="cal-event-title">${s.title||'수업'}</div><div class="cal-event-sub">${mem?mem.name:toHM(s.start_time)}</div></div>`;
+      }).join('');
+      html+=`<div class="cal-slot${isPast?' past':''}${isNow?' now-row':''}" onclick="openSchedModal(null,'${ymd}','${startT}')">${evHtml}</div>`;
+    });
+  }
+  document.getElementById('calGrid').innerHTML=html;
+  // 현재 시간대로 자동 스크롤
+  const scrollEl=document.getElementById('calGridScroll');
+  scrollEl.scrollTop=(Math.max(CAL_START_H,nowH>CAL_START_H?nowH-1:CAL_START_H)-CAL_START_H)*CAL_SLOT_PX;
 }
-function selectCalDay(ymd){
-  selectedCalDate=fromYMD(ymd);
-  const dates=Array.from({length:4},(_,i)=>{const d=new Date(calBaseDate);d.setDate(d.getDate()+i);return d;});
-  renderCalDays(dates);renderCalDetail(selectedCalDate);
-  document.getElementById('calAddBtn').onclick=()=>openSchedModal(null,ymd);
+// ── 자정 자동갱신 ────────────────────────────────────────────
+function scheduleMidnightRefresh(){
+  if(_midnightTimer)clearTimeout(_midnightTimer);
+  const now=new Date(),midnight=new Date(now);
+  midnight.setHours(24,0,10,0);
+  _midnightTimer=setTimeout(async()=>{
+    await autoCompleteYesterday();
+    myMembersForSched=[];
+    await loadScheduleView();
+  },midnight-now);
 }
-function renderCalDetail(date){
-  const ymd=toYMD(date),detail=document.getElementById('calDetail');
-  const events=scheduleData.filter(s=>s.sched_date===ymd);
-  const fmt=d=>`${d.getMonth()+1}월 ${d.getDate()}일 (${DAY_KO[d.getDay()]})`;
-  if(!events.length){detail.innerHTML=`<div class="cal-detail-title">${fmt(date)} — 일정 없음</div>`;return;}
-  detail.innerHTML=`<div class="cal-detail-title">${fmt(date)}</div>`+events.map(s=>{
-    const member=myMembersForSched.find(m=>m.id===s.member_id);
-    return `<div class="sched-card" style="border-left-color:${s.color||'#6c63ff'}" onclick="openSchedModal('${s.id}',null)"><div class="sched-card-time">${toHM(s.start_time)}${s.end_time?' ~ '+toHM(s.end_time):''}</div><div class="sched-card-title">${s.title||'수업'}</div>${member?`<div class="sched-card-member">${member.name}</div>`:''}</div>`;
-  }).join('');
+async function autoCompleteYesterday(){
+  const y=new Date();y.setDate(y.getDate()-1);
+  try{await db.from('schedules').update({is_completed:true}).eq('trainer_id',me.id).eq('sched_date',toYMD(y)).is('is_completed',null);}catch(_){}
 }
 
 // ── 에러 공통 처리 ──────────────────────────────────────────
@@ -754,7 +783,7 @@ if ('serviceWorker' in navigator) {
 </div>
 <script>
 function selectSchedColor(el){_schedColor=el.dataset.color;document.querySelectorAll('#schedColorPicker span').forEach(s=>s.style.border='3px solid transparent');el.style.border='3px solid #fff';}
-function openSchedModal(schedId,date){
+function openSchedModal(schedId,date,time){
   const sel=document.getElementById('schedMember');
   sel.innerHTML='<option value="">-- 회원 없음 --</option>';
   (myMembersForSched||[]).forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=m.name;sel.appendChild(o);});
@@ -776,6 +805,12 @@ function openSchedModal(schedId,date){
     ['schedDate','schedStart','schedEnd','schedTitle','schedNotes'].forEach(id=>document.getElementById(id).value='');
     sel.value='';document.getElementById('schedDeleteBtn').style.display='none';
     document.getElementById('schedDate').value=date||'';
+    // 시간 슬롯 클릭 시 시작/종료 자동 입력 (1시간 단위)
+    if(time){
+      document.getElementById('schedStart').value=time;
+      const[hh,mm]=time.split(':').map(Number);
+      document.getElementById('schedEnd').value=`${String((hh+1)%24).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+    }
     document.getElementById('schedModalTitle').textContent='일정 추가';
   }
   _schedEditId=schedId||null;

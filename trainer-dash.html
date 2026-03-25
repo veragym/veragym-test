@@ -145,9 +145,9 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .cal-click-zone.past{background:#080c1422;cursor:default}
 .cal-now-line{position:absolute;left:0;right:0;height:2px;background:#6c63ff;z-index:3;pointer-events:none}
 .cal-now-line::before{content:'';position:absolute;left:-3px;top:-3px;width:8px;height:8px;background:#6c63ff;border-radius:50%}
-.cal-event{position:absolute;left:2px;right:2px;border-radius:4px;padding:2px 4px;overflow:hidden;cursor:pointer;z-index:2;box-sizing:border-box}
-.cal-event-title{font-size:10px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
-.cal-event-sub{font-size:9px;color:rgba(255,255,255,0.82);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-event{position:absolute;left:2px;right:2px;border-radius:6px;padding:3px 4px;overflow:hidden;cursor:pointer;z-index:2;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.cal-event-title{font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;width:100%;text-align:center}
+.cal-event-sub{font-size:10px;color:rgba(255,255,255,0.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center;font-weight:600}
 </style>
 </head>
 <body>
@@ -599,7 +599,8 @@ window.addEventListener('pageshow', (e) => {
 
 // ══════════ 일정 탭 – 구글캘린더 그리드 (오늘~3일 후, 고정) ══════════
 const CAL_START_H=6,CAL_END_H=23,CAL_SLOT_PX=56;
-let scheduleData=[],myMembersForSched=[],_schedEditId=null,_schedColor='#6c63ff',_midnightTimer=null;
+let scheduleData=[],myMembersForSched=[],_schedEditId=null,_midnightTimer=null;
+const TYPE_COLORS={PT:'#6c63ff',SPT:'#4fc3f7',업무:'#ffb74d',청소:'#66bb6a',홍보:'#f06292',식사:'#ffd54f'};
 const DAY_KO=['일','월','화','수','목','금','토'];
 // 로컬 타임존 기준 YYYY-MM-DD (toISOString은 UTC → KST +9 시차 버그)
 function toYMD(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
@@ -668,7 +669,7 @@ function renderCalGrid(dates){
       const dur=(eh-sh)+(em-sm)/60;
       const height=Math.max(dur*CAL_SLOT_PX,20);
       const mem=myMembersForSched.find(m=>m.id===s.member_id);
-      const bg=s.color||'#6c63ff';
+      const bg=TYPE_COLORS[s.type||'PT']||'#6c63ff';
       const sType=s.type||'PT';
       const memName=mem?mem.name:'';
       let sessionTxt='';
@@ -678,7 +679,7 @@ function renderCalGrid(dates){
       }
       const evLine1=memName||sType;
       const evLine2=memName?`${sType}${sessionTxt}`:'';
-      col+=`<div class="cal-event" style="background:${bg}dd;top:${top}px;height:${height}px" onclick="event.stopPropagation();openSchedModal('${s.id}',null,null)"><div class="cal-event-title">${evLine1}</div>${evLine2?`<div class="cal-event-sub">${evLine2}</div>`:''}</div>`;
+      col+=`<div class="cal-event" style="background:${bg}dd;top:${top}px;height:${height}px" onclick="event.stopPropagation();openSchedInfo('${s.id}')"><div class="cal-event-title">${evLine1}</div>${evLine2?`<div class="cal-event-sub">${evLine2}</div>`:''}</div>`;
     });
     // 현재 시간 표시선
     if(isToday){const ny=timeToY(nowH,nowM);if(ny>=0&&ny<=TOTAL_PX)col+=`<div class="cal-now-line" style="top:${ny}px"></div>`;}
@@ -716,6 +717,102 @@ async function handleDbError(error, fallbackMsg) {
 }
 const _origSwitchTab=switchTab;
 switchTab=function(id,btn){_origSwitchTab(id,btn);if(id==='schedule')loadScheduleView();};
+
+// ══════════ 일정 상세/액션 모달 ══════════
+const SI_STATUS_COLOR={scheduled:'#6c63ff',completed:'#22c55e',noshow:'#f59e0b',cancelled:'#6b7280'};
+const SI_STATUS_LABEL={scheduled:'예약됨',completed:'완료',noshow:'노쇼',cancelled:'취소됨'};
+let _siTarget=null,_siActionPending=null;
+
+function calcDurMin(start,end){if(!start||!end)return 60;const[sh,sm]=start.split(':').map(Number);const[eh,em]=end.split(':').map(Number);const d=(eh*60+em)-(sh*60+sm);return d>0?d:60;}
+
+function openSchedInfo(schedId){
+  _siTarget=scheduleData.find(s=>s.id===schedId);
+  if(!_siTarget)return;
+  _siActionPending=null;
+  const s=_siTarget;
+  const mem=myMembersForSched.find(m=>m.id===s.member_id);
+  // 헤더
+  document.getElementById('siMember').textContent=mem?.name||(s.type||'일정');
+  const sc=SI_STATUS_COLOR[s.status]||'#666';
+  document.getElementById('siStatus').innerHTML=`<span style="background:${sc}33;border:1px solid ${sc}66;color:${sc};padding:3px 12px;border-radius:99px;font-size:12px;font-weight:700;">${SI_STATUS_LABEL[s.status]||s.status}</span>`;
+  // 상세
+  const[y,mo,d]=s.sched_date.split('-').map(Number);
+  const dateObj=new Date(y,mo-1,d);
+  const DAY_KO2=['일','월','화','수','목','금','토'];
+  const timeStr=s.start_time?s.start_time.slice(0,5):'--:--';
+  const dur=calcDurMin(s.start_time,s.end_time);
+  document.getElementById('siDateTime').textContent=`${mo}/${d}(${DAY_KO2[dateObj.getDay()]}) ${timeStr} (${dur}분)`;
+  document.getElementById('siType').textContent=s.type||'PT';
+  // PT 회차
+  const sessRow=document.getElementById('siSessionRow');
+  if(s.type==='PT'){
+    sessRow.style.display='flex';
+    if(s.pt_products){const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);document.getElementById('siSession').textContent=`${u}/${s.pt_products.total_sessions||0}회 사용`;}
+    else document.getElementById('siSession').textContent='-';
+  }else{sessRow.style.display='none';}
+  document.getElementById('siErr').style.display='none';
+  renderSiActions();
+  document.getElementById('schedInfoModal').style.display='flex';
+  document.body.style.overflow='hidden';
+}
+
+function renderSiActions(){
+  if(!_siTarget)return;
+  const s=_siTarget;
+  const acts=document.getElementById('siActions');
+  if(s.status==='scheduled'){
+    acts.innerHTML=`
+      <button id="siBtnComplete" onclick="siAction('complete')" style="width:100%;background:#22c55e22;border:1.5px solid #22c55e55;color:#4ade80;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">완료 처리</button>
+      <button id="siBtnNoshow" onclick="siAction('noshow')" style="width:100%;background:#f59e0b22;border:1.5px solid #f59e0b55;color:#fbbf24;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">노쇼 처리</button>
+      <div style="display:flex;gap:10px;">
+        <button id="siBtnCancel" onclick="siAction('cancel')" style="flex:1;background:#ff4d4f22;border:1.5px solid #ff4d4f55;color:#ff4d4f;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">예약 취소</button>
+        <button onclick="closeSchedInfo();openSchedModal('${s.id}',null,null)" style="flex:1;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">수정</button>
+      </div>`;
+  }else{
+    acts.innerHTML=`<button onclick="closeSchedInfo()" style="width:100%;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">닫기</button>`;
+  }
+}
+
+async function siAction(action){
+  if(!_siTarget)return;
+  const errEl=document.getElementById('siErr');
+  errEl.style.display='none';
+  // 1차 탭: 확인 요청
+  if(_siActionPending!==action){
+    _siActionPending=action;
+    const ids={complete:'siBtnComplete',noshow:'siBtnNoshow',cancel:'siBtnCancel'};
+    const labels={complete:'완료 처리 — 한 번 더 탭해서 확인',noshow:'노쇼 처리 — 한 번 더 탭해서 확인',cancel:'취소 — 한 번 더 탭해서 확인'};
+    const btn=document.getElementById(ids[action]);
+    if(btn){btn.textContent=labels[action];}
+    setTimeout(()=>{if(_siActionPending===action){_siActionPending=null;renderSiActions();}},3000);
+    return;
+  }
+  // 2차 탭: 실행
+  _siActionPending=null;
+  document.getElementById('siActions').querySelectorAll('button').forEach(b=>b.disabled=true);
+  try{
+    if(action==='complete'||action==='noshow'){
+      const{data,error}=await db.rpc('process_session',{p_schedule_id:_siTarget.id,p_action:action==='complete'?'completed':'noshow'});
+      if(error||!data?.ok)throw new Error(error?.message||data?.error||'처리 실패');
+    }else if(action==='cancel'){
+      const{error}=await db.from('schedules').update({status:'cancelled'}).eq('id',_siTarget.id);
+      if(error)throw new Error('취소 실패: '+error.message);
+    }
+    closeSchedInfo();
+    showToast(action==='complete'?'수업 완료 처리되었습니다':action==='noshow'?'노쇼 처리되었습니다':'예약이 취소되었습니다');
+    await loadScheduleView();
+  }catch(e){
+    errEl.textContent=e.message;errEl.style.display='block';
+    document.getElementById('siActions').querySelectorAll('button').forEach(b=>b.disabled=false);
+    renderSiActions();
+  }
+}
+
+function closeSchedInfo(){
+  document.getElementById('schedInfoModal').style.display='none';
+  document.body.style.overflow='';
+  _siTarget=null;_siActionPending=null;
+}
 </script>
 <script>
 if ('serviceWorker' in navigator) {
@@ -750,25 +847,20 @@ if ('serviceWorker' in navigator) {
       <input id="schedEnd" type="hidden" value="10:00">
     </div>
     <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">유형</label>
-      <select id="schedType" onchange="onSchedTypeChange()" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;-webkit-appearance:none;">
-        <option value="PT">PT</option>
-        <option value="SPT">SPT</option>
-        <option value="업무">업무</option>
-        <option value="청소">청소</option>
-        <option value="홍보">홍보</option>
-        <option value="식사">식사</option>
-      </select></div>
+      <div style="position:relative;">
+        <select id="schedType" onchange="onSchedTypeChange()" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 40px 10px 12px;font-size:14px;box-sizing:border-box;outline:none;appearance:none;-webkit-appearance:none;cursor:pointer;">
+          <option value="PT">PT</option>
+          <option value="SPT">SPT</option>
+          <option value="업무">업무</option>
+          <option value="청소">청소</option>
+          <option value="홍보">홍보</option>
+          <option value="식사">식사</option>
+        </select>
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:#aaa;font-size:12px;">▼</span>
+      </div></div>
     <div id="schedMemberRow" style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">회원 (선택)</label>
       <select id="schedMember" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;-webkit-appearance:none;">
         <option value="">-- 회원 없음 --</option></select></div>
-    <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:8px;">색상</label>
-      <div id="schedColorPicker" style="display:flex;gap:10px;">
-        <span data-color="#6c63ff" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#6c63ff;cursor:pointer;border:3px solid #fff;box-sizing:border-box;"></span>
-        <span data-color="#4fc3f7" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#4fc3f7;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
-        <span data-color="#81c784" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#81c784;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
-        <span data-color="#ffb74d" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#ffb74d;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
-        <span data-color="#f06292" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#f06292;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
-      </div></div>
     <div style="margin-bottom:20px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">메모</label>
       <textarea id="schedNotes" rows="3" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;resize:vertical;font-family:inherit;"></textarea></div>
     <div style="display:flex;gap:10px;">
@@ -777,8 +869,35 @@ if ('serviceWorker' in navigator) {
     </div>
   </div>
 </div>
+
+<!-- ===== 일정 상세/액션 모달 ===== -->
+<div id="schedInfoModal" style="display:none;position:fixed;inset:0;z-index:1001;background:rgba(0,0,0,0.55);align-items:flex-end;justify-content:center;" onclick="if(event.target===this)closeSchedInfo()">
+  <div style="background:#1e1e2e;width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:0 20px calc(28px + env(safe-area-inset-bottom));box-sizing:border-box;max-height:85dvh;overflow-y:auto;animation:slideUp .22s ease;">
+    <div style="width:36px;height:4px;background:#3a3a5c;border-radius:99px;margin:14px auto 20px;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div id="siMember" style="font-size:18px;font-weight:800;color:#fff;"></div>
+      <div id="siStatus"></div>
+    </div>
+    <div style="background:#141428;border-radius:12px;padding:14px 16px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #2a2a3c;">
+        <span style="font-size:12px;color:#6a6a8a;">날짜/시간</span>
+        <span id="siDateTime" style="font-size:13px;color:#fff;font-weight:600;"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #2a2a3c;">
+        <span style="font-size:12px;color:#6a6a8a;">유형</span>
+        <span id="siType" style="font-size:13px;color:#fff;font-weight:600;"></span>
+      </div>
+      <div id="siSessionRow" style="display:flex;justify-content:space-between;padding:5px 0;">
+        <span style="font-size:12px;color:#6a6a8a;">PT 회차</span>
+        <span id="siSession" style="font-size:13px;color:#fff;font-weight:600;"></span>
+      </div>
+    </div>
+    <div id="siErr" style="display:none;background:#ff4d4f22;color:#ff4d4f;border:1px solid #ff4d4f55;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px;"></div>
+    <div id="siActions" style="display:flex;flex-direction:column;gap:10px;margin-top:14px;"></div>
+  </div>
+</div>
+
 <script>
-function selectSchedColor(el){_schedColor=el.dataset.color;document.querySelectorAll('#schedColorPicker span').forEach(s=>s.style.border='3px solid transparent');el.style.border='3px solid #fff';}
 // ── 유형 변경 시 회원 행 show/hide ──────────────────────────
 function onSchedTypeChange(){
   const t=document.getElementById('schedType').value;
@@ -829,7 +948,6 @@ function openSchedModal(schedId,date,time){
   const sel=document.getElementById('schedMember');
   sel.innerHTML='<option value="">-- 회원 없음 --</option>';
   (myMembersForSched||[]).forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=m.name;sel.appendChild(o);});
-  _schedColor='#6c63ff';document.querySelectorAll('#schedColorPicker span').forEach((s,i)=>s.style.border=i===0?'3px solid #fff':'3px solid transparent');
   document.getElementById('timePickerDrop').style.display='none';
   if(schedId){
     db.from('schedules').select('*').eq('id',schedId).single().then(({data})=>{
@@ -844,7 +962,6 @@ function openSchedModal(schedId,date,time){
       document.getElementById('schedType').value=data.type||'PT';
       document.getElementById('schedNotes').value=data.notes||'';
       sel.value=data.member_id||'';
-      if(data.color){_schedColor=data.color;document.querySelectorAll('#schedColorPicker span').forEach(s=>s.style.border=s.dataset.color===data.color?'3px solid #fff':'3px solid transparent');}
       onSchedTypeChange();
       document.getElementById('schedDeleteBtn').style.display='block';
       document.getElementById('schedModalTitle').textContent='일정 수정';
@@ -885,7 +1002,7 @@ async function saveSchedule(){
     const{data:prod}=await db.from('pt_products').select('id').eq('member_id',selMember).eq('status','active').maybeSingle();
     ptProductId=prod?.id||null;
   }
-  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,type:selType,notes:document.getElementById('schedNotes').value.trim()||null,color:_schedColor,member_id:selMember,pt_product_id:ptProductId};
+  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,type:selType,notes:document.getElementById('schedNotes').value.trim()||null,color:TYPE_COLORS[selType]||'#6c63ff',member_id:selMember,pt_product_id:ptProductId};
   let error;
   if(_schedEditId){({error}=await db.from('schedules').update(payload).eq('id',_schedEditId));}
   else{({error}=await db.from('schedules').insert({...payload,status:'scheduled'}));}

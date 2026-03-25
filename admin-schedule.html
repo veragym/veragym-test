@@ -264,6 +264,36 @@ td.slot.today-bg{background:rgba(201,168,76,.04)}
   </div>
 </div>
 
+<!-- ── Complete Confirm Modal ── -->
+<div class="modal-bg" id="completeModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">수업 완료 처리</div>
+    <div class="modal-sub">이 수업을 완료 처리합니다. 사용 회차가 1회 차감됩니다.</div>
+    <div class="modal-detail" id="completeDetail"></div>
+    <div class="err-box" id="completeErr"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('completeModal')">취소</button>
+      <button class="btn-gold" id="btnCompleteConfirm" onclick="doComplete()">완료 처리</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Noshow Mark Confirm Modal ── -->
+<div class="modal-bg" id="noshowModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">노쇼 처리</div>
+    <div class="modal-sub">이 수업을 노쇼 처리합니다. 사용 회차가 1회 차감됩니다.</div>
+    <div class="modal-detail" id="noshowMarkDetail"></div>
+    <div class="err-box" id="noshowMarkErr"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('noshowModal')">취소</button>
+      <button class="btn-danger" id="btnNoshowMarkConfirm" onclick="doNoshowMark()">노쇼 처리</button>
+    </div>
+  </div>
+</div>
+
 <div class="loading-ov" id="loadingOv"><div class="spinner"></div></div>
 <div id="toast"></div>
 
@@ -294,8 +324,7 @@ function p2(n) { return String(n).padStart(2,'0'); }
 function dayStart(d) { const r=new Date(d); r.setHours(0,0,0,0); return r; }
 function addDays(d,n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function toLocalISO(d) { return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`; }
-function utcToLocalDate(s) { return toLocalISO(new Date(s)); }
-function utcToLocalTime(s) { const d=new Date(s); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; }
+function calcDurationMin(start,end){if(!start||!end)return 60;const[sh,sm]=start.split(':').map(Number);const[eh,em]=end.split(':').map(Number);const diff=(eh*60+em)-(sh*60+sm);return diff>0?diff:60;}
 function fmtShort(d) { return `${d.getMonth()+1}/${d.getDate()}`; }
 function fmtDayFull(d) {
   return `${d.getMonth()+1}/${d.getDate()}(${DAY_KO[d.getDay()]}) ${p2(d.getHours())}:${p2(d.getMinutes())}`;
@@ -306,7 +335,7 @@ const ST_LABEL = {scheduled:'예약',completed:'완료',noshow:'노쇼',cancelle
 const ST_CLS   = {scheduled:'st-scheduled',completed:'st-completed',noshow:'st-noshow',cancelled:'st-cancelled'};
 
 function showLoad(v) { document.getElementById('loadingOv').classList.toggle('show',v); }
-function openModal(id) { document.getElementById(id).classList.add('open'); const _eid=id==='noshowCancelModal'?'noshowErr':id.replace('Modal','Err'); const _el=document.getElementById(_eid); if(_el)_el.style.display='none'; }
+function openModal(id) { document.getElementById(id).classList.add('open'); const _map={cancelModal:'cancelErr',rollbackModal:'rollbackErr',noshowCancelModal:'noshowErr',completeModal:'completeErr',noshowModal:'noshowMarkErr',infoModal:'infoErr'}; const _el=document.getElementById(_map[id]||''); if(_el)_el.style.display='none'; }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function showErr(id, msg) { const el=document.getElementById(id); if(el){el.textContent=msg;el.style.display='block';} }
 function showToast(msg,ms=2600) {
@@ -315,12 +344,14 @@ function showToast(msg,ms=2600) {
   setTimeout(()=>t.style.opacity='0',ms);
 }
 function buildDetailHtml(sched) {
-  const dt = new Date(sched.scheduled_at);
-  return `<div class="dr"><span class="dl">날짜</span><span class="dv">${fmtDayFull(dt)}</span></div>
+  const [y,mo,d]=sched.sched_date.split('-').map(Number);
+  const dateObj=new Date(y,mo-1,d);
+  const timeStr=sched.start_time?sched.start_time.slice(0,5):'--:--';
+  return `<div class="dr"><span class="dl">날짜</span><span class="dv">${mo}/${d}(${DAY_KO[dateObj.getDay()]}) ${timeStr}</span></div>
     <div class="dr"><span class="dl">트레이너</span><span class="dv">${sched.trainers?.name||'-'}</span></div>
     <div class="dr"><span class="dl">회원</span><span class="dv">${sched.members?.name||'-'}</span></div>
     <div class="dr"><span class="dl">상태</span><span class="dv"><span class="st-tag ${ST_CLS[sched.status]||''}">${ST_LABEL[sched.status]||sched.status}</span></span></div>
-    <div class="dr"><span class="dl">메모</span><span class="dv" style="color:#555">${sched.memo||'-'}</span></div>`;
+    <div class="dr"><span class="dl">메모</span><span class="dv" style="color:#555">${sched.notes||'-'}</span></div>`;
 }
 
 // ── 초기화 ──────────────────────────────────────────────
@@ -375,11 +406,11 @@ async function refreshAll() {
   const toDate   = toLocalISO(addDays(startDate, 3));
 
   let schedQ = db.from('schedules')
-    .select('id,contract_id,trainer_id,member_id,scheduled_at,duration_min,status,memo,workout_log_id,members(name),trainers(name)')
-    .gte('scheduled_at', startDate.toISOString())
-    .lt('scheduled_at', endDate.toISOString())
+    .select('id,pt_product_id,trainer_id,member_id,sched_date,start_time,end_time,status,notes,members(name),trainers(name)')
+    .gte('sched_date', fromDate)
+    .lte('sched_date', toDate)
     .neq('status', 'cancelled')
-    .order('scheduled_at');
+    .order('sched_date').order('start_time');
   if (selTrainerId) schedQ = schedQ.eq('trainer_id', selTrainerId);
 
   const [schR, offR, holR] = await Promise.all([
@@ -432,7 +463,7 @@ function renderCal() {
 
   const slotMap = {};
   schedData.forEach(s => {
-    const key = `${utcToLocalDate(s.scheduled_at)}T${utcToLocalTime(s.scheduled_at)}`;
+    const key = `${s.sched_date}T${s.start_time.slice(0,5)}`;
     slotMap[key] = s;
   });
 
@@ -456,12 +487,13 @@ function renderCal() {
 
       const td = document.createElement('td');
       if (sched) {
-        const span = Math.max(1, Math.ceil((sched.duration_min||60)/30));
+        const dur = calcDurationMin(sched.start_time, sched.end_time);
+        const span = Math.max(1, Math.ceil(dur/30));
         if (span>1) { td.rowSpan=span; for(let k=1;k<span;k++) occ[`${di}:${ti+k}`]=true; }
         td.className = `slot s-${sched.status}${isToday?' today-bg':''}`;
         td.innerHTML = `<div class="slot-inner">
           <div class="slot-name">${sched.members?.name||'-'}</div>
-          <div class="slot-lbl">${ST_LABEL[sched.status]||sched.status} · ${sched.duration_min||60}m</div>
+          <div class="slot-lbl">${ST_LABEL[sched.status]||sched.status} · ${dur}m</div>
         </div>`;
         td.onclick = () => openInfoModal(sched);
       } else if (isOff) {
@@ -487,7 +519,7 @@ function renderList() {
   // 날짜별 그룹화
   const groups = {};
   schedData.forEach(s => {
-    const dk = utcToLocalDate(s.scheduled_at);
+    const dk = s.sched_date;
     if (!groups[dk]) groups[dk] = [];
     groups[dk].push(s);
   });
@@ -496,18 +528,19 @@ function renderList() {
   Object.keys(groups).sort().forEach(dateKey => {
     const d = new Date(dateKey + 'T00:00:00');
     html += `<div class="date-group"><div class="date-group-label">${fmtDateOnly(d)}</div>`;
-    groups[dateKey].sort((a,b)=>new Date(a.scheduled_at)-new Date(b.scheduled_at)).forEach(s => {
-      const dt = new Date(s.scheduled_at);
+    groups[dateKey].sort((a,b)=>a.start_time.localeCompare(b.start_time)).forEach(s => {
+      const timeStr = s.start_time?s.start_time.slice(0,5):'--:--';
+      const dur = calcDurationMin(s.start_time, s.end_time);
       html += `<div class="sched-card">
         <div class="scard-top">
           <div class="scard-meta">
-            <span class="scard-time">${p2(dt.getHours())}:${p2(dt.getMinutes())}</span>
+            <span class="scard-time">${timeStr}</span>
             <span class="scard-trainer">${s.trainers?.name||'-'}</span>
             <span class="st-tag ${ST_CLS[s.status]||''}">${ST_LABEL[s.status]||s.status}</span>
           </div>
         </div>
-        <div class="scard-member">${s.members?.name||'-'} <span class="scard-duration">(${s.duration_min||60}분)</span></div>
-        ${s.memo?`<div class="scard-memo">${s.memo}</div>`:''}
+        <div class="scard-member">${s.members?.name||'-'} <span class="scard-duration">(${dur}분)</span></div>
+        ${s.notes?`<div class="scard-memo">${s.notes}</div>`:''}
         <div class="scard-actions">${buildActionBtns(s)}</div>
       </div>`;
     });
@@ -520,11 +553,12 @@ function buildActionBtns(s) {
   const id = s.id;
   let btns = '';
   if (s.status === 'scheduled') {
-    btns += `<button class="btn-act btn-cancel-act" onclick="confirmCancel('${id}')">예약 취소</button>`;
+    btns += `<button class="btn-act" style="background:#22c55e22;border:1px solid #22c55e55;color:#4ade80" onclick="confirmComplete('${id}')">완료</button>`;
+    btns += `<button class="btn-act btn-noshow-act" onclick="confirmNoshowMark('${id}')">노쇼</button>`;
+    btns += `<button class="btn-act btn-cancel-act" onclick="confirmCancel('${id}')">취소</button>`;
   }
   if (s.status === 'completed') {
     btns += `<button class="btn-act btn-rollback-act" onclick="confirmRollback('${id}')">완료 롤백</button>`;
-    btns += `<button class="btn-act btn-cancel-act" onclick="confirmCancel('${id}')">취소 처리</button>`;
   }
   if (s.status === 'noshow') {
     btns += `<button class="btn-act btn-noshow-act" onclick="confirmNoshowCancel('${id}')">노쇼 취소처리</button>`;
@@ -535,36 +569,46 @@ function buildActionBtns(s) {
 // ── Info 모달 (캘린더 슬롯 클릭) ─────────────────────────
 function openInfoModal(sched) {
   actionTarget = sched;
-  const dt = new Date(sched.scheduled_at);
-  document.getElementById('infoMember').textContent = sched.members?.name || '수업 상세';
-  document.getElementById('infoDate').textContent   = `${dt.getMonth()+1}/${dt.getDate()}(${DAY_KO[dt.getDay()]})`;
-  document.getElementById('infoTime').textContent   = `${p2(dt.getHours())}:${p2(dt.getMinutes())} (${sched.duration_min||60}분)`;
+  const [y,mo,d]=sched.sched_date.split('-').map(Number);
+  const dateObj=new Date(y,mo-1,d);
+  const timeStr=sched.start_time?sched.start_time.slice(0,5):'--:--';
+  const dur=calcDurationMin(sched.start_time,sched.end_time);
+  document.getElementById('infoMember').textContent  = sched.members?.name || '수업 상세';
+  document.getElementById('infoDate').textContent    = `${mo}/${d}(${DAY_KO[dateObj.getDay()]})`;
+  document.getElementById('infoTime').textContent    = `${timeStr} (${dur}분)`;
   document.getElementById('infoTrainer').textContent = sched.trainers?.name || '-';
-  document.getElementById('infoStatus').innerHTML   = `<span class="st-tag ${ST_CLS[sched.status]||''}">${ST_LABEL[sched.status]||sched.status}</span>`;
-  document.getElementById('infoMemo').textContent   = sched.memo || '없음';
+  document.getElementById('infoStatus').innerHTML    = `<span class="st-tag ${ST_CLS[sched.status]||''}">${ST_LABEL[sched.status]||sched.status}</span>`;
+  document.getElementById('infoMemo').textContent    = sched.notes || '없음';
 
-  // 회차 표시 (비동기)
+  // 회차 표시 (비동기) - pt_products 기준
   document.getElementById('infoSession').textContent = '...';
-  db.from('schedules').select('id',{count:'exact',head:true})
-    .eq('contract_id', sched.contract_id).in('status',['completed','noshow'])
-    .then(({count}) => {
-      db.from('pt_contracts').select('total_sessions').eq('id',sched.contract_id).single()
-        .then(({data:c}) => {
-          document.getElementById('infoSession').textContent = `${count||0}/${c?.total_sessions||24}회 사용`;
-        });
-    });
+  if (sched.pt_product_id) {
+    db.from('pt_products').select('remaining_sessions,total_sessions').eq('id',sched.pt_product_id).single()
+      .then(({data:p}) => {
+        if (p) {
+          const used = (p.total_sessions||0) - (p.remaining_sessions||0);
+          document.getElementById('infoSession').textContent = `${used}/${p.total_sessions||0}회 사용`;
+        } else {
+          document.getElementById('infoSession').textContent = '-';
+        }
+      });
+  } else {
+    document.getElementById('infoSession').textContent = '-';
+  }
 
   // 액션 버튼 구성
   const acts = document.getElementById('infoActions');
   acts.innerHTML = `<button class="btn-cancel" onclick="closeModal('infoModal')" style="flex:1">닫기</button>`;
   if (sched.status==='scheduled') {
-    acts.innerHTML += `<button class="btn-danger" style="flex:1;border-radius:12px;padding:13px;font-size:14px" onclick="closeModal('infoModal');confirmCancel('${sched.id}')">예약 취소</button>`;
+    acts.innerHTML += `<button class="btn-gold" style="flex:1;border-radius:12px;padding:11px;font-size:13px" onclick="closeModal('infoModal');confirmComplete('${sched.id}')">완료</button>`;
+    acts.innerHTML += `<button style="flex:1;border-radius:12px;padding:11px;font-size:13px;background:#f59e0b22;border:1px solid #f59e0b44;color:#fbbf24;cursor:pointer;font-weight:700;font-family:inherit" onclick="closeModal('infoModal');confirmNoshowMark('${sched.id}')">노쇼</button>`;
+    acts.innerHTML += `<button class="btn-danger" style="flex:1;border-radius:12px;padding:11px;font-size:13px" onclick="closeModal('infoModal');confirmCancel('${sched.id}')">취소</button>`;
   }
   if (sched.status==='completed') {
     acts.innerHTML += `<button class="btn-gold" style="flex:1;border-radius:12px;padding:11px;font-size:13px" onclick="closeModal('infoModal');confirmRollback('${sched.id}')">완료 롤백</button>`;
   }
   if (sched.status==='noshow') {
-    acts.innerHTML += `<button class="btn-danger" style="flex:1;border-radius:12px;padding:13px;font-size:14px" onclick="closeModal('infoModal');confirmNoshowCancel('${sched.id}')">노쇼 취소처리</button>`;
+    acts.innerHTML += `<button class="btn-danger" style="flex:1;border-radius:12px;padding:11px;font-size:13px" onclick="closeModal('infoModal');confirmNoshowCancel('${sched.id}')">노쇼 취소처리</button>`;
   }
 
   document.getElementById('infoErr').style.display='none';
@@ -636,124 +680,90 @@ async function doNoshowCancel() {
   const btn = document.getElementById('btnNoshowConfirm');
   btn.disabled = true;
   try {
-    // 노쇼 → 취소: 24회차 차단 없이 직접 취소 처리 (실수 노쇼 정정 목적)
-    const { error } = await db.from('schedules')
-      .update({ status:'cancelled', updated_at: new Date().toISOString() })
-      .eq('id', actionTarget.id);
-    if (error) throw new Error('취소 실패: ' + error.message);
-
-    // 계약이 completed 상태였다면 active로 복구
-    const { data: contract } = await db.from('pt_contracts')
-      .select('id,status,total_sessions')
-      .eq('id', actionTarget.contract_id).single();
-    if (contract?.status === 'completed') {
-      const { count: newCnt } = await db.from('schedules')
-        .select('id',{count:'exact',head:true})
-        .eq('contract_id', actionTarget.contract_id)
-        .in('status',['completed','noshow']);
-      if ((newCnt||0) < contract.total_sessions) {
-        await db.from('pt_contracts').update({status:'active'}).eq('id', contract.id);
-      }
-    }
+    // rollback_session: 노쇼 → 예약 상태 복구 + 회차 복구 (DB 함수 처리)
+    const {data, error} = await db.rpc('rollback_session', {p_schedule_id: actionTarget.id});
+    if (error || !data?.ok) throw new Error(error?.message || data?.error || '롤백 실패');
+    // 예약 상태로 복구된 것을 다시 취소로 변경
+    const {error: e2} = await db.from('schedules').update({status:'cancelled'}).eq('id', actionTarget.id);
+    if (e2) throw new Error('취소 변경 실패: ' + e2.message);
     closeModal('noshowCancelModal');
     showToast('노쇼가 취소 처리되었습니다');
     await refreshAll();
   } catch(e) {
     showErr('noshowErr', e.message);
-    btn.disabled=false;
+    btn.disabled = false;
   }
 }
 
 // ── 핵심 비즈니스 로직 ────────────────────────────────────
 
-// 취소 공통 로직 (scheduled / completed / noshow 모두 사용)
-async function checkAndCancel(sched) {
-  const { data: contract } = await db.from('pt_contracts')
-    .select('id,status,total_sessions,contract_order')
-    .eq('id', sched.contract_id).single();
-  if (!contract) throw new Error('계약 정보를 찾을 수 없습니다');
-
-  // completed/noshow 취소 시: 마지막 회차 취소 여부 + 다음 계약 활성 여부 확인
-  if (sched.status === 'completed' || sched.status === 'noshow') {
-    const { count } = await db.from('schedules')
-      .select('id',{count:'exact',head:true})
-      .eq('contract_id', sched.contract_id)
-      .in('status',['completed','noshow']);
-
-    if ((count||0) >= contract.total_sessions) {
-      // 이 취소가 계약 완료를 되돌리게 됨 → 다음 계약 활성 여부 확인
-      const { data: next } = await db.from('pt_contracts')
-        .select('id,status')
-        .eq('member_id', sched.member_id)
-        .eq('contract_order', contract.contract_order + 1)
-        .maybeSingle();
-      if (next?.status === 'active') {
-        throw new Error('다음 계약이 이미 진행 중입니다. 취소할 수 없습니다.');
-      }
-    }
-  }
-
-  // 취소 처리
-  const { error } = await db.from('schedules')
-    .update({ status:'cancelled', updated_at: new Date().toISOString() })
-    .eq('id', sched.id);
-  if (error) throw new Error('취소 실패: ' + error.message);
-
-  // 계약이 completed 상태였다면 다시 active로 복구
-  if ((sched.status==='completed'||sched.status==='noshow') && contract.status==='completed') {
-    const { count: newCnt } = await db.from('schedules')
-      .select('id',{count:'exact',head:true})
-      .eq('contract_id', sched.contract_id)
-      .in('status',['completed','noshow']);
-    if ((newCnt||0) < contract.total_sessions) {
-      await db.from('pt_contracts').update({status:'active'}).eq('id', contract.id);
-    }
+// 완료 처리 확인 모달
+function confirmComplete(schedId) {
+  actionTarget = schedData.find(s=>s.id===schedId);
+  if (!actionTarget) return;
+  document.getElementById('completeDetail').innerHTML = buildDetailHtml(actionTarget);
+  document.getElementById('btnCompleteConfirm').disabled = false;
+  openModal('completeModal');
+}
+async function doComplete() {
+  if (!actionTarget) return;
+  const btn = document.getElementById('btnCompleteConfirm');
+  btn.disabled = true;
+  try {
+    const {data, error} = await db.rpc('process_session', {p_schedule_id: actionTarget.id, p_action: 'completed'});
+    if (error || !data?.ok) throw new Error(error?.message || data?.error || '완료 처리 실패');
+    closeModal('completeModal');
+    showToast('수업이 완료 처리되었습니다');
+    await refreshAll();
+  } catch(e) {
+    showErr('completeErr', e.message);
+    btn.disabled = false;
   }
 }
 
-// 롤백 (completed → scheduled + workout_log 삭제)
+// 노쇼 처리 확인 모달
+function confirmNoshowMark(schedId) {
+  actionTarget = schedData.find(s=>s.id===schedId);
+  if (!actionTarget) return;
+  document.getElementById('noshowMarkDetail').innerHTML = buildDetailHtml(actionTarget);
+  document.getElementById('btnNoshowMarkConfirm').disabled = false;
+  openModal('noshowModal');
+}
+async function doNoshowMark() {
+  if (!actionTarget) return;
+  const btn = document.getElementById('btnNoshowMarkConfirm');
+  btn.disabled = true;
+  try {
+    const {data, error} = await db.rpc('process_session', {p_schedule_id: actionTarget.id, p_action: 'noshow'});
+    if (error || !data?.ok) throw new Error(error?.message || data?.error || '노쇼 처리 실패');
+    closeModal('noshowModal');
+    showToast('노쇼 처리되었습니다');
+    await refreshAll();
+  } catch(e) {
+    showErr('noshowMarkErr', e.message);
+    btn.disabled = false;
+  }
+}
+
+// 취소 공통 로직 (scheduled: 직접 취소 / completed·noshow: rollback_session 후 취소)
+async function checkAndCancel(sched) {
+  if (sched.status === 'scheduled') {
+    const {error} = await db.from('schedules').update({status:'cancelled'}).eq('id', sched.id);
+    if (error) throw new Error('취소 실패: ' + error.message);
+  } else {
+    // completed/noshow → DB 함수로 회차 복구 후 취소 처리
+    const {data, error} = await db.rpc('rollback_session', {p_schedule_id: sched.id});
+    if (error || !data?.ok) throw new Error(error?.message || data?.error || '처리 실패');
+    const {error: e2} = await db.from('schedules').update({status:'cancelled'}).eq('id', sched.id);
+    if (e2) throw new Error('취소 처리 실패: ' + e2.message);
+  }
+}
+
+// 롤백 (completed → scheduled + 회차 복구 + workout_log 소프트 삭제 - DB 함수 처리)
 async function execRollback(sched) {
   if (sched.status !== 'completed') throw new Error('완료 상태인 수업만 롤백 가능합니다');
-
-  const { data: contract } = await db.from('pt_contracts')
-    .select('id,status,total_sessions,contract_order')
-    .eq('id', sched.contract_id).single();
-  if (!contract) throw new Error('계약 정보를 찾을 수 없습니다');
-
-  // 24회차 롤백 차단: 다음 계약이 이미 active
-  const { count } = await db.from('schedules')
-    .select('id',{count:'exact',head:true})
-    .eq('contract_id', sched.contract_id)
-    .in('status',['completed','noshow']);
-  if ((count||0) >= contract.total_sessions) {
-    const { data: next } = await db.from('pt_contracts')
-      .select('id,status')
-      .eq('member_id', sched.member_id)
-      .eq('contract_order', contract.contract_order + 1)
-      .maybeSingle();
-    if (next?.status === 'active') {
-      throw new Error('다음 계약이 이미 진행 중입니다. 롤백할 수 없습니다.');
-    }
-  }
-
-  // workout_log 삭제 (hard delete: workout_log_exercises 먼저 삭제 후 workout_logs 삭제)
-  if (sched.workout_log_id) {
-    // 1) 하위 운동 기록 먼저 삭제
-    await db.from('workout_log_exercises').delete().eq('log_id', sched.workout_log_id);
-    // 2) 수업일지 본체 삭제
-    await db.from('workout_logs').delete().eq('id', sched.workout_log_id);
-  }
-
-  // 스케줄 롤백
-  const { error } = await db.from('schedules')
-    .update({ status:'scheduled', workout_log_id:null, updated_at: new Date().toISOString() })
-    .eq('id', sched.id);
-  if (error) throw new Error('롤백 실패: ' + error.message);
-
-  // 계약이 completed였다면 active로 복구
-  if (contract.status === 'completed') {
-    await db.from('pt_contracts').update({status:'active'}).eq('id', contract.id);
-  }
+  const {data, error} = await db.rpc('rollback_session', {p_schedule_id: sched.id});
+  if (error || !data?.ok) throw new Error(error?.message || data?.error || '롤백 실패');
 }
 
 // ── 날짜 이동 ────────────────────────────────────────────

@@ -684,14 +684,10 @@ function scheduleMidnightRefresh(){
   const now=new Date(),midnight=new Date(now);
   midnight.setHours(24,0,10,0);
   _midnightTimer=setTimeout(async()=>{
-    await autoCompleteYesterday();
+    // 자동완료는 DB cron job(auto_complete_old_sessions)이 처리
     myMembersForSched=[];
     await loadScheduleView();
   },midnight-now);
-}
-async function autoCompleteYesterday(){
-  const y=new Date();y.setDate(y.getDate()-1);
-  try{await db.from('schedules').update({is_completed:true}).eq('trainer_id',me.id).eq('sched_date',toYMD(y)).is('is_completed',null);}catch(_){}
 }
 
 // ── 에러 공통 처리 ──────────────────────────────────────────
@@ -857,7 +853,7 @@ async function saveSchedule(){
   const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,title:document.getElementById('schedTitle').value.trim()||'수업',notes:document.getElementById('schedNotes').value.trim()||null,color:_schedColor,member_id:document.getElementById('schedMember').value||null};
   let error;
   if(_schedEditId){({error}=await db.from('schedules').update(payload).eq('id',_schedEditId));}
-  else{({error}=await db.from('schedules').insert(payload));}
+  else{({error}=await db.from('schedules').insert({...payload,status:'scheduled'}));}
   btn.disabled=false;btn.textContent='저장';
   if(error){errEl.textContent=error.message;errEl.style.display='block';return;}
   closeSchedModal();showToast(_schedEditId?'일정 수정 완료':'일정 추가 완료');await loadScheduleView();

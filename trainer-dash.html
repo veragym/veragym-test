@@ -176,7 +176,6 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
   <div id="view-member-list">
     <div class="sec-header">
       <div><span class="sec-title">내 회원</span><span class="sec-count" id="memberCount"></span></div>
-      <button class="btn-add" onclick="openAddMember()">+ 회원 추가</button>
     </div>
     <div id="memberList"><div class="loading">불러오는 중...</div></div>
   </div>
@@ -236,28 +235,6 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 <!-- ══════════════════════════════════════════════════════════
      MODALS
 ═══════════════════════════════════════════════════════════ -->
-
-<!-- 회원 추가 모달 -->
-<div id="addMemberModal" class="modal-bg" onclick="closeModal('addMemberModal',event)">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title">회원 추가</div>
-    <div class="err-box" id="memberErr"></div>
-    <div class="field">
-      <label>이름 <span style="color:#f87171">*</span></label>
-      <input id="mName" type="text" placeholder="홍길동" autocomplete="off">
-    </div>
-
-    <div class="field">
-      <label>메모 (선택)</label>
-      <textarea id="mNotes" placeholder="특이사항, 목표 등" rows="2"></textarea>
-    </div>
-    <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeModal('addMemberModal')">취소</button>
-      <button class="btn-save" id="btnAddMember" onclick="addMember()">추가</button>
-    </div>
-  </div>
-</div>
 
 
 <!-- 요청사항 추가 모달 -->
@@ -383,35 +360,6 @@ function renderMemberList() {
   wrap.innerHTML = html;
 }
 
-function openAddMember() {
-  document.getElementById('mName').value = '';
-  document.getElementById('mNotes').value = '';
-  document.getElementById('memberErr').style.display = 'none';
-  openModal('addMemberModal');
-}
-
-async function addMember() {
-  const name  = document.getElementById('mName').value.trim();
-  const notes = document.getElementById('mNotes').value.trim();
-  const btn   = document.getElementById('btnAddMember');
-
-  document.getElementById('memberErr').style.display = 'none';
-  if (!name) { showModalErr('memberErr', '이름을 입력해주세요'); return; }
-
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>추가 중...';
-  const { error } = await db.from('members').insert({
-    name, gym_location: me.gym_location, notes: notes || null, trainer_id: me.id, is_active: true
-  });
-
-  if (error) {
-    showModalErr('memberErr', '추가 실패: ' + error.message);
-  } else {
-    closeModal('addMemberModal');
-    showToast(`${name} 회원 추가 완료!`);
-    loadMembers();
-  }
-  btn.disabled = false; btn.textContent = '추가';
-}
 
 // ── 회원 상세 ──────────────────────────────────────────────
 async function showMemberDetail(memberId) {

@@ -248,16 +248,16 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
       <div class="hint">입력 시 이름+suffix로 저장됩니다 (예: 홍길동73051)</div>
     </div>
     <div class="field">
-      <label>담당 트레이너 <span style="color:#f87171">*</span></label>
-      <select id="mTrainer" onchange="onTrainerChange()">
-        <option value="">-- 선택 --</option>
+      <label>지점 <span style="color:#f87171">*</span></label>
+      <select id="mGym" onchange="onGymChange()">
+        <option value="미사점">미사점</option>
+        <option value="동탄점">동탄점</option>
       </select>
     </div>
     <div class="field">
-      <label>지점 <span style="color:#f87171">*</span></label>
-      <select id="mGym">
-        <option value="미사점">미사점</option>
-        <option value="동탄점">동탄점</option>
+      <label>담당 트레이너 <span style="color:#f87171">*</span></label>
+      <select id="mTrainer">
+        <option value="">-- 선택 --</option>
       </select>
     </div>
     <div class="field">
@@ -670,13 +670,6 @@ function showMemberMemo(memberId) {
 // ── 회원 추가 ────────────────────────────────────────────────
 
 function openAddMember() {
-  // 트레이너 목록 드롭다운 채우기
-  const sel = document.getElementById('mTrainer');
-  sel.innerHTML = '<option value="">-- 선택 --</option>';
-  _allTrainers.filter(t => t.is_active).sort((a,b) => a.name.localeCompare(b.name, 'ko')).forEach(t => {
-    sel.innerHTML += `<option value="${t.id}" data-gym="${t.gym_location}">${t.name} (${t.gym_location})</option>`;
-  });
-
   // 초기화
   document.getElementById('mName').value = '';
   document.getElementById('mSuffix').value = '';
@@ -685,7 +678,25 @@ function openAddMember() {
   document.getElementById('mNameHint').style.display = 'none';
   document.getElementById('mSuffixField').style.display = 'none';
   document.getElementById('mGym').value = '미사점';
+  // 지점에 맞는 트레이너 목록 초기 세팅
+  filterTrainersByGym('미사점');
   openModal('addMemberModal');
+}
+
+function filterTrainersByGym(gym) {
+  const sel = document.getElementById('mTrainer');
+  sel.innerHTML = '<option value="">-- 선택 --</option>';
+  _allTrainers
+    .filter(t => t.is_active && t.gym_location === gym)
+    .sort((a,b) => a.name.localeCompare(b.name, 'ko'))
+    .forEach(t => {
+      sel.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+    });
+}
+
+function onGymChange() {
+  const gym = document.getElementById('mGym').value;
+  filterTrainersByGym(gym);
 }
 
 function onMemberNameInput() {
@@ -704,16 +715,6 @@ function onMemberNameInput() {
   }
 }
 
-function onTrainerChange() {
-  const sel = document.getElementById('mTrainer');
-  const opt = sel.options[sel.selectedIndex];
-  const gym = opt?.dataset?.gym;
-  if (gym) {
-    const gymSel = document.getElementById('mGym');
-    // 해당 지점 option 선택
-    for (let o of gymSel.options) { if (o.value === gym) { gymSel.value = gym; break; } }
-  }
-}
 
 async function addMember() {
   const rawName = document.getElementById('mName').value.trim();

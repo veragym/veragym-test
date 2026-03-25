@@ -173,6 +173,7 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 <div id="tab-members" class="tab-content">
   <div class="sec-header">
     <div><span class="sec-title">전체 회원</span><span class="sec-count" id="memberCount"></span></div>
+    <button class="btn-add" onclick="openAddMember()">+ 회원 추가</button>
   </div>
   <!-- 지점별 요약 카운트 -->
   <div id="branchSummary" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"></div>
@@ -227,6 +228,46 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
     <div style="font-size:12px;color:#888;margin-bottom:8px">트레이너 메모</div>
     <div class="memo-body" id="memoContent"></div>
     <button class="btn-cancel" style="margin-top:16px;width:100%" onclick="closeModal('memoModal')">닫기</button>
+  </div>
+</div>
+
+<!-- 회원 추가 모달 -->
+<div id="addMemberModal" class="modal-bg" onclick="closeModal('addMemberModal',event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">회원 추가</div>
+    <div class="err-box" id="memberErr"></div>
+    <div class="field">
+      <label>이름 <span style="color:#f87171">*</span></label>
+      <input id="mName" type="text" placeholder="홍길동" autocomplete="off" oninput="onMemberNameInput()">
+      <div class="hint" id="mNameHint" style="display:none;color:#f87171"></div>
+    </div>
+    <div class="field" id="mSuffixField" style="display:none">
+      <label>구분 suffix (선택) <span style="font-size:10px;color:#666">— 동명이인 구분용</span></label>
+      <input id="mSuffix" type="text" placeholder="예: 73051" autocomplete="off" maxlength="10">
+      <div class="hint">입력 시 이름+suffix로 저장됩니다 (예: 홍길동73051)</div>
+    </div>
+    <div class="field">
+      <label>담당 트레이너 <span style="color:#f87171">*</span></label>
+      <select id="mTrainer" onchange="onTrainerChange()">
+        <option value="">-- 선택 --</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>지점 <span style="color:#f87171">*</span></label>
+      <select id="mGym">
+        <option value="미사점">미사점</option>
+        <option value="동탄점">동탄점</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>메모 (선택)</label>
+      <textarea id="mNotes" placeholder="특이사항, 목표 등" rows="2" style="width:100%;background:#0a0a08;border:1.5px solid #2a2518;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;resize:none"></textarea>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal('addMemberModal')">취소</button>
+      <button class="btn-save" id="btnAddMember" onclick="addMember()">추가</button>
+    </div>
   </div>
 </div>
 
@@ -624,6 +665,92 @@ function showMemberMemo(memberId) {
     `${m.gym_location || ''} · 담당: ${trainer?.name || '미배정'}`;
   document.getElementById('memoContent').textContent = m.notes || '(메모 없음)';
   openModal('memoModal');
+}
+
+// ── 회원 추가 ────────────────────────────────────────────────
+
+function openAddMember() {
+  // 트레이너 목록 드롭다운 채우기
+  const sel = document.getElementById('mTrainer');
+  sel.innerHTML = '<option value="">-- 선택 --</option>';
+  _allTrainers.filter(t => t.is_active).sort((a,b) => a.name.localeCompare(b.name, 'ko')).forEach(t => {
+    sel.innerHTML += `<option value="${t.id}" data-gym="${t.gym_location}">${t.name} (${t.gym_location})</option>`;
+  });
+
+  // 초기화
+  document.getElementById('mName').value = '';
+  document.getElementById('mSuffix').value = '';
+  document.getElementById('mNotes').value = '';
+  document.getElementById('memberErr').style.display = 'none';
+  document.getElementById('mNameHint').style.display = 'none';
+  document.getElementById('mSuffixField').style.display = 'none';
+  document.getElementById('mGym').value = '미사점';
+  openModal('addMemberModal');
+}
+
+function onMemberNameInput() {
+  const name = document.getElementById('mName').value.trim();
+  const hint = document.getElementById('mNameHint');
+  const sfField = document.getElementById('mSuffixField');
+  if (!name) { hint.style.display = 'none'; sfField.style.display = 'none'; return; }
+  const dupes = _allMembers.filter(m => m.name === name || m.name.startsWith(name));
+  if (dupes.length) {
+    hint.textContent = `동일한 이름 회원이 ${dupes.length}명 있습니다. suffix로 구분해 주세요.`;
+    hint.style.display = 'block';
+    sfField.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+    sfField.style.display = 'none';
+  }
+}
+
+function onTrainerChange() {
+  const sel = document.getElementById('mTrainer');
+  const opt = sel.options[sel.selectedIndex];
+  const gym = opt?.dataset?.gym;
+  if (gym) {
+    const gymSel = document.getElementById('mGym');
+    // 해당 지점 option 선택
+    for (let o of gymSel.options) { if (o.value === gym) { gymSel.value = gym; break; } }
+  }
+}
+
+async function addMember() {
+  const rawName = document.getElementById('mName').value.trim();
+  const suffix  = document.getElementById('mSuffix').value.trim();
+  const name    = rawName + suffix;
+  const notes   = document.getElementById('mNotes').value.trim();
+  const trainerId = document.getElementById('mTrainer').value || null;
+  const gym     = document.getElementById('mGym').value;
+  const btn     = document.getElementById('btnAddMember');
+  const errBox  = document.getElementById('memberErr');
+
+  errBox.style.display = 'none';
+  if (!rawName) { errBox.textContent = '이름을 입력해주세요'; errBox.style.display = 'block'; return; }
+  if (!trainerId) { errBox.textContent = '담당 트레이너를 선택해주세요'; errBox.style.display = 'block'; return; }
+
+  // 최종 이름 중복 체크
+  const exactDupe = _allMembers.find(m => m.name === name);
+  if (exactDupe) {
+    errBox.textContent = `"${name}" 이름이 이미 존재합니다. suffix를 변경해 주세요.`;
+    errBox.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>추가 중...';
+  const { error } = await db.from('members').insert({
+    name, gym_location: gym, notes: notes || null, trainer_id: trainerId, is_active: true
+  });
+
+  if (error) {
+    errBox.textContent = '추가 실패: ' + error.message;
+    errBox.style.display = 'block';
+  } else {
+    closeModal('addMemberModal');
+    showToast(`${name} 회원 추가 완료!`);
+    loadMembers();
+  }
+  btn.disabled = false; btn.textContent = '추가';
 }
 
 // ── 운동 DB ──────────────────────────────────────────────────

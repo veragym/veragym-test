@@ -151,7 +151,7 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .img-upload-zone img { max-height:120px; border-radius:8px; object-fit:cover; }
 
 /* ── 일정 탭 ─────────────────────────────────────────── */
-#tab-schedule { padding:0; overflow:hidden; }
+#tab-schedule { padding:0; }
 /* 필터 + 날짜이동 */
 .sc-ctrl { background:#111108; border-bottom:1px solid #2a2518; padding:10px 14px; display:flex; align-items:center; gap:10px; position:sticky; top:101px; z-index:97; }
 .sc-trainer-sel { background:#161610; border:1.5px solid #2a2518; border-radius:10px; padding:8px 12px; font-size:13px; color:#ccc; outline:none; font-family:inherit; cursor:pointer; flex:1; min-width:130px; -webkit-appearance:none; }
@@ -160,19 +160,19 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .sc-vtoggle { display:flex; border:1.5px solid #2a2518; border-radius:10px; overflow:hidden; flex-shrink:0; }
 .sc-vbtn { background:#161610; border:none; color:#666; font-size:12px; font-weight:700; padding:8px 14px; cursor:pointer; font-family:inherit; transition:all .15s; }
 .sc-vbtn.active { background:#c9a84c22; color:#c9a84c; }
-.sc-date-nav { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; background:#111108; border-bottom:1px solid #2a251888; position:sticky; top:145px; z-index:96; }
+/* .sc-date-nav merged into .sc-ctrl */
 .sc-date-range { font-size:13px; font-weight:700; color:#c9a84c; letter-spacing:.3px; }
 .sc-nav-arrow { background:#1a1a14; border:1px solid #2a251888; border-radius:8px; color:#c9a84c; font-size:13px; padding:6px 12px; cursor:pointer; font-weight:700; font-family:inherit; }
 .sc-nav-arrow:active { opacity:.7; }
 /* 날짜 헤더 행 (sticky) */
-.sc-date-row { display:flex; background:#111108; border-bottom:2px solid #2a2518; padding:4px 0; position:sticky; top:189px; z-index:95; }
+.sc-date-row { display:flex; background:#111108; border-bottom:2px solid #2a2518; padding:4px 0; position:sticky; top:145px; z-index:95; }
 .sc-gutter { width:52px; flex-shrink:0; border-right:1px solid #2a251844; }
 .sc-day-hdr { flex:1; text-align:center; padding:4px 2px; }
 .sc-dhdr-name { font-size:10px; color:#6a5830; margin-bottom:1px; text-transform:uppercase; }
 .sc-dhdr-num { font-size:18px; font-weight:700; color:#c0b8a8; display:inline-block; width:34px; height:34px; line-height:34px; text-align:center; border-radius:50%; }
 .sc-day-hdr.today .sc-dhdr-num { color:#000; background:#c9a84c; }
 /* 그리드 스크롤 */
-.sc-grid-scroll { overflow-y:auto; -webkit-overflow-scrolling:touch; height:calc(100dvh - 57px - 44px - 44px - 44px - 52px); }
+.sc-grid-scroll { overflow-y:auto; -webkit-overflow-scrolling:touch; height:calc(100dvh - 57px - 44px - 44px - 52px); }
 .sc-grid { display:grid; grid-template-columns:52px repeat(4,1fr); }
 .sc-time-col { position:relative; }
 .sc-time-label { position:absolute; font-size:10px; font-weight:500; color:#6a5830; text-align:right; right:6px; transform:translateY(-50%); line-height:1.2; pointer-events:none; white-space:nowrap; }
@@ -294,21 +294,19 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 
 <!-- ── 일정 탭 ─────────────────────────────────────────── -->
 <div id="tab-schedule" class="tab-content">
-  <!-- 필터 바 -->
+  <!-- 필터 + 날짜이동 (한 줄로 통합) -->
   <div class="sc-ctrl">
+    <select class="sc-trainer-sel" id="scBranchSel" onchange="scOnBranchChange()" style="max-width:90px">
+      <option value="">전체 지점</option>
+    </select>
     <select class="sc-trainer-sel" id="scTrainerSel" onchange="scOnFilter()">
       <option value="">전체 트레이너</option>
     </select>
-    <div class="sc-vtoggle">
-      <button class="sc-vbtn active" id="scVbCal" onclick="scSwitchView('cal')">캘린더</button>
-      <button class="sc-vbtn" id="scVbList" onclick="scSwitchView('list')">목록</button>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto;">
+      <button class="sc-nav-arrow" onclick="scMoveDays(-4)">&#8249;</button>
+      <span id="scRange" class="sc-date-range" style="font-size:12px;white-space:nowrap;"></span>
+      <button class="sc-nav-arrow" onclick="scMoveDays(4)">&#8250;</button>
     </div>
-  </div>
-  <!-- 날짜 이동 -->
-  <div class="sc-date-nav">
-    <button class="sc-nav-arrow" onclick="scMoveDays(-4)">&#8249; 이전</button>
-    <span id="scRange" class="sc-date-range"></span>
-    <button class="sc-nav-arrow" onclick="scMoveDays(4)">다음 &#8250;</button>
   </div>
   <!-- 캘린더 -->
   <div id="scCalView">
@@ -1349,7 +1347,7 @@ const SC_SC = {scheduled:'sc-st-scheduled',completed:'sc-st-completed',noshow:'s
 const SC_SLOTS=[];for(let _h=6;_h<=23;_h++){SC_SLOTS.push(String(_h).padStart(2,'0')+':00');if(_h<23)SC_SLOTS.push(String(_h).padStart(2,'0')+':30');}
 const SC_DAY=['일','월','화','수','목','금','토'];
 
-let scData=[],scStart=null,scView='cal',scTrainerId='',scTarget=null,scPendingAction=null,scTrainersLoaded=false;
+let scData=[],scStart=null,scView='cal',scTrainerId='',scTarget=null,scPendingAction=null,scTrainersLoaded=false,_scAllTrainers=[];
 
 function scP2(n){return String(n).padStart(2,'0');}
 function scDayStart(d){const r=new Date(d);r.setHours(0,0,0,0);return r;}
@@ -1363,11 +1361,30 @@ async function loadScheduleTab(){
   if(!scStart)scStart=scDayStart(new Date());
   if(!scTrainersLoaded){
     const{data}=await db.from('trainers').select('id,name,gym_location').eq('is_active',true).order('name');
-    const sel=document.getElementById('scTrainerSel');
-    (data||[]).forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=`${t.name}(${t.gym_location})`;sel.appendChild(o);});
+    _scAllTrainers=data||[];
+    // 지점 드롭다운 채우기
+    const branchSel=document.getElementById('scBranchSel');
+    const branches=[...new Set(_scAllTrainers.map(t=>t.gym_location).filter(Boolean))].sort();
+    branches.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;branchSel.appendChild(o);});
+    // 트레이너 드롭다운 초기화 (전체)
+    scPopulateTrainers('');
     scTrainersLoaded=true;
   }
   await scRefresh();
+}
+
+function scPopulateTrainers(branch){
+  const sel=document.getElementById('scTrainerSel');
+  sel.innerHTML='<option value="">전체 트레이너</option>';
+  const filtered=branch?_scAllTrainers.filter(t=>t.gym_location===branch):_scAllTrainers;
+  filtered.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.name;sel.appendChild(o);});
+}
+
+function scOnBranchChange(){
+  const branch=document.getElementById('scBranchSel').value;
+  scPopulateTrainers(branch);
+  scTrainerId='';
+  scRefresh();
 }
 
 function scOnFilter(){scTrainerId=document.getElementById('scTrainerSel').value;scRefresh();}
@@ -1387,7 +1404,16 @@ async function scRefresh(){
     .select('id,pt_product_id,trainer_id,member_id,sched_date,start_time,end_time,type,status,notes,members(name),trainers(name),pt_products(remaining_sessions,total_sessions)')
     .gte('sched_date',from).lte('sched_date',to)
     .order('sched_date').order('start_time');
-  if(scTrainerId)q=q.eq('trainer_id',scTrainerId);
+  if(scTrainerId){
+    q=q.eq('trainer_id',scTrainerId);
+  } else {
+    // 지점만 선택된 경우: 해당 지점 트레이너 ID 목록으로 필터
+    const branch=document.getElementById('scBranchSel')?.value||'';
+    if(branch){
+      const ids=_scAllTrainers.filter(t=>t.gym_location===branch).map(t=>t.id);
+      if(ids.length)q=q.in('trainer_id',ids);
+    }
+  }
   const{data,error}=await q;
   if(error){showToast('일정 불러오기 실패');return;}
   scData=data||[];
@@ -1419,6 +1445,13 @@ function scRenderCal(){
   }
   timeCol+=`<div style="position:absolute;top:${TOTAL}px;width:1px;height:1px"></div></div>`;
 
+  // 예약 중 PT 세션 오프셋 계산 (trainer-dash와 동일 방식)
+  const _scPtSorted=scData.filter(s=>s.type==='PT'&&s.status==='scheduled'&&s.pt_product_id)
+    .sort((a,b)=>(a.sched_date+a.start_time)<(b.sched_date+b.start_time)?-1:1);
+  const _scPtOffsetMap=new Map();
+  const _scPtCnt={};
+  _scPtSorted.forEach(s=>{const k=s.pt_product_id;if(!_scPtCnt[k])_scPtCnt[k]=0;_scPtOffsetMap.set(s.id,_scPtCnt[k]++);});
+
   // 날짜 컬럼
   const dayCols=days.map(d=>{
     const ymd=scYMD(d),isT=ymd===todayISO;
@@ -1446,7 +1479,7 @@ function scRenderCal(){
       const memName=s.members?.name||'';
       const trainerName=s.trainers?.name||'';
       let stxt='';
-      if(sType==='PT'&&s.pt_products){const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);stxt=`${u}/${s.pt_products.total_sessions||0}`;}
+      if(sType==='PT'&&s.pt_products){const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);const offset=s.status==='scheduled'?(_scPtOffsetMap.get(s.id)||0):0;stxt=`${u+offset}/${s.pt_products.total_sessions||0}`;}
       const line1=memName||sType;
       // PT: 항상 회차 표시. 전체 트레이너 시 트레이너명 앞에 붙임
       let line2='';
@@ -1524,7 +1557,17 @@ function scOpenInfo(sched){
   const scBg={scheduled:'#6c63ff22',completed:'#22c55e22',noshow:'#f59e0b22',cancelled:'#33333322'};
   document.getElementById('scInfoStatus').innerHTML=`<span style="background:${scBg[sc]||'#22222222'};border:1px solid ${scColor[sc]||'#666'}44;color:${scColor[sc]||'#666'};padding:3px 12px;border-radius:99px;font-size:12px;font-weight:700;">${SC_SL[sc]||sc}</span>`;
   let sessTxt='-';
-  if(sched.pt_products){const u=(sched.pt_products.total_sessions||0)-(sched.pt_products.remaining_sessions||0);sessTxt=`${u}/${sched.pt_products.total_sessions||0}회 사용`;}
+  if(sched.pt_products){
+    const u=(sched.pt_products.total_sessions||0)-(sched.pt_products.remaining_sessions||0);
+    let infoOffset=0;
+    if(sched.status==='scheduled'&&sched.type==='PT'&&sched.pt_product_id){
+      const ptSorted=scData.filter(x=>x.type==='PT'&&x.status==='scheduled'&&x.pt_product_id===sched.pt_product_id)
+        .sort((a,b)=>(a.sched_date+a.start_time)<(b.sched_date+b.start_time)?-1:1);
+      infoOffset=ptSorted.findIndex(x=>x.id===sched.id);
+      if(infoOffset<0)infoOffset=0;
+    }
+    sessTxt=`${u+infoOffset}/${sched.pt_products.total_sessions||0}회 사용`;
+  }
   document.getElementById('scInfoDetail').innerHTML=`
     <div class="sc-dr"><span class="sc-dl">날짜/시간</span><span class="sc-dv">${mo}/${d}(${SC_DAY[dateObj.getDay()]}) ${tStr} (${dur}분)</span></div>
     <div class="sc-dr"><span class="sc-dl">트레이너</span><span class="sc-dv">${sched.trainers?.name||'-'}</span></div>

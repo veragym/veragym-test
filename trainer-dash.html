@@ -132,7 +132,7 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .cal-dhdr-name{font-size:10px;color:#4a6580;margin-bottom:1px;text-transform:uppercase}
 .cal-dhdr-num{font-size:18px;font-weight:700;color:#c0c8d8;display:inline-block;width:34px;height:34px;line-height:34px;text-align:center;border-radius:50%}
 .cal-day-hdr.today .cal-dhdr-num{color:#fff;background:#6c63ff}
-.cal-grid-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100svh - 203px)}
+.cal-grid-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;height:calc(100svh - 165px)}
 .cal-grid{display:grid;grid-template-columns:52px repeat(4,1fr)}
 /* ── 30분 절대위치 그리드 ── */
 .cal-time-col{position:relative}
@@ -206,10 +206,6 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 
 <!-- ── Tab: 일정 ─────────────────────────────────────────── -->
 <div id="tab-schedule" class="tab-content">
-  <!-- 시간표 공유 컨트롤 바 -->
-  <div style="display:flex;align-items:center;justify-content:flex-end;padding:5px 12px;background:#080e1a;border-bottom:1px solid #1e3a5f33;">
-    <button onclick="openBranchSchedModal()" style="background:#1e3a5f;border:1px solid #2a5a8f55;color:#7fb3d3;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:.3px;">📋 전체 시간표</button>
-  </div>
   <div class="cal-wrap">
     <div class="cal-date-row" id="calDateRow">
       <div class="cal-gutter"></div>
@@ -231,14 +227,14 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
       </div>
       <button onclick="closeBranchSchedModal()" style="background:none;border:none;color:#6a88a8;font-size:20px;cursor:pointer;padding:4px;">✕</button>
     </div>
-    <!-- 날짜 선택 -->
-    <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid #1e3a5f33;flex-shrink:0;">
-      <span style="font-size:12px;color:#6a88a8;white-space:nowrap;">날짜 선택</span>
-      <input type="date" id="bsDatePicker" oninput="onBsDateChange()" style="flex:1;background:#1a2a3a;border:1px solid #2a5a8f55;border-radius:8px;color:#fff;padding:6px 10px;font-size:13px;outline:none;font-family:inherit;">
-      <span style="font-size:12px;color:#6a88a8;white-space:nowrap;" id="bsTimeRange">오전 8시~오후 10시</span>
+    <!-- 날짜 선택 (오늘/내일) -->
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid #1e3a5f33;flex-shrink:0;">
+      <button id="bsBtnToday" onclick="onBsDay(0)" style="flex:1;background:#6c63ff;border:none;color:#fff;border-radius:8px;padding:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">오늘</button>
+      <button id="bsBtnTomorrow" onclick="onBsDay(1)" style="flex:1;background:#1e3a5f;border:1px solid #2a5a8f55;color:#7fb3d3;border-radius:8px;padding:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">내일</button>
+      <input type="hidden" id="bsDatePicker" value="">
     </div>
     <!-- 캔버스 영역 -->
-    <div style="overflow:auto;-webkit-overflow-scrolling:touch;flex:1;display:flex;align-items:flex-start;justify-content:flex-start;background:#050c18;" id="bsCanvasWrap">
+    <div style="overflow:auto;-webkit-overflow-scrolling:touch;flex:1;display:flex;align-items:flex-start;justify-content:flex-start;background:#f4f4f4;" id="bsCanvasWrap">
       <canvas id="bsCanvas" style="display:block;"></canvas>
     </div>
     <!-- 저장/공유 버튼 -->
@@ -668,10 +664,16 @@ function renderCalGrid(dates){
   const todayYMD=toYMD(new Date()),now=new Date(),nowH=now.getHours(),nowM=now.getMinutes();
   const TOTAL_PX=(CAL_END_H-CAL_START_H+1)*CAL_SLOT_PX; // 전체 높이
   // ── 날짜 헤더 ──
-  document.getElementById('calDateRow').innerHTML='<div class="cal-gutter"></div>'+dates.map(d=>{
-    const isToday=toYMD(d)===todayYMD;
-    return`<div class="cal-day-hdr${isToday?' today':''}"><div class="cal-dhdr-name">${DAY_KO[d.getDay()]}</div><div class="cal-dhdr-num">${d.getDate()}</div></div>`;
-  }).join('');
+  // gutter에 시간표 버튼 삽입
+  document.getElementById('calDateRow').innerHTML=
+    '<div class="cal-gutter" onclick="openBranchSchedModal()" style="display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:1px;user-select:none;">'+
+    '<span style="font-size:14px;line-height:1;">📋</span>'+
+    '<span style="font-size:8px;color:#6c63ff;font-weight:700;letter-spacing:-.3px;">시간표</span>'+
+    '</div>'+
+    dates.map(d=>{
+      const isToday=toYMD(d)===todayYMD;
+      return`<div class="cal-day-hdr${isToday?' today':''}"><div class="cal-dhdr-name">${DAY_KO[d.getDay()]}</div><div class="cal-dhdr-num">${d.getDate()}</div></div>`;
+    }).join('');
   // ── 시간 레이블 컬럼 (absolute) ──
   let timeCol=`<div class="cal-time-col" style="height:${TOTAL_PX}px">`;
   for(let h=CAL_START_H;h<=CAL_END_H;h++){
@@ -778,30 +780,44 @@ async function handleDbError(error, fallbackMsg) {
 const _origSwitchTab=switchTab;
 switchTab=function(id,btn){_origSwitchTab(id,btn);if(id==='schedule')loadScheduleView();};
 
-// ══════════ 전체 시간표 이미지 기능 ══════════
-const BS_START_H=8,BS_END_H=22,BS_PX_PER_H=58,BS_TIME_W=58,BS_HEADER_H=72,BS_ROW_H=36;
-const BS_TC={PT:'#6c63ff',SPT:'#4fc3f7',업무:'#ffb74d',청소:'#66bb6a',홍보:'#f06292',식사:'#ffd54f'};
+// ══════════ 전체 시간표 이미지 기능 (스프레드시트 형식) ══════════
 const BS_DAYS=['일','월','화','수','목','금','토'];
-let _bsTrainers=[],_bsSchedules=[];
+let _bsTrainers=[],_bsSchedules=[],_bsCurrentDate='';
 
 function closeBranchSchedModal(){
   document.getElementById('branchSchedModal').style.display='none';
 }
 
+// 오늘/내일 버튼 토글 상태 반영
+function _bsSetDayBtn(offset){
+  document.getElementById('bsBtnToday').style.background=offset===0?'#6c63ff':'#1e3a5f';
+  document.getElementById('bsBtnToday').style.color=offset===0?'#fff':'#7fb3d3';
+  document.getElementById('bsBtnTomorrow').style.background=offset===1?'#6c63ff':'#1e3a5f';
+  document.getElementById('bsBtnTomorrow').style.color=offset===1?'#fff':'#7fb3d3';
+}
+
+async function onBsDay(offset){
+  _bsSetDayBtn(offset);
+  const d=new Date();d.setDate(d.getDate()+offset);
+  _bsCurrentDate=toYMD(d);
+  document.getElementById('bsDatePicker').value=_bsCurrentDate;
+  document.getElementById('bsSubtitle').textContent='불러오는 중...';
+  await _bsLoadDay(_bsCurrentDate);
+  drawBranchCanvas(_bsCurrentDate);
+}
+
 async function openBranchSchedModal(){
   document.getElementById('branchSchedModal').style.display='flex';
-  // 오늘 날짜 기본값
+  _bsSetDayBtn(0);
   const today=toYMD(new Date());
+  _bsCurrentDate=today;
   document.getElementById('bsDatePicker').value=today;
   document.getElementById('bsSubtitle').textContent='불러오는 중...';
-
   // 같은 지점 트레이너 목록
   const gym=me?.gym_location||'';
   const{data:trainerList}=await db.from('trainers')
     .select('id,name').eq('gym_location',gym).eq('is_active',true).order('name');
   _bsTrainers=trainerList||[];
-
-  // 해당 날짜 일정 (첫 로드)
   await _bsLoadDay(today);
   drawBranchCanvas(today);
 }
@@ -810,167 +826,244 @@ async function _bsLoadDay(dateStr){
   if(!_bsTrainers.length)return;
   const ids=_bsTrainers.map(t=>t.id);
   const{data}=await db.from('schedules')
-    .select('id,trainer_id,member_id,sched_date,start_time,end_time,type,status,members(name)')
-    .in('trainer_id',ids)
-    .eq('sched_date',dateStr)
-    .neq('status','cancelled')
-    .order('start_time');
+    .select('id,trainer_id,member_id,sched_date,start_time,end_time,type,status,pt_product_id,members(name),pt_products(total_sessions,remaining_sessions)')
+    .in('trainer_id',ids).eq('sched_date',dateStr).neq('status','cancelled').order('start_time');
   _bsSchedules=data||[];
 }
 
-async function onBsDateChange(){
-  const d=document.getElementById('bsDatePicker').value;
-  if(!d)return;
-  await _bsLoadDay(d);
-  drawBranchCanvas(d);
-}
-
-// 둥근 직사각형 그리기 (호환성)
-function _bsRR(ctx,x,y,w,h,r){
-  if(w<2*r)r=w/2;if(h<2*r)r=h/2;
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-  ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-  ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
-  ctx.closePath();
-}
-
+/* ── 스프레드시트형 캔버스 렌더링 ── */
 function drawBranchCanvas(dateStr){
   const canvas=document.getElementById('bsCanvas');
   const ctx=canvas.getContext('2d');
-  const dpr=window.devicePixelRatio||1;
-  const n=_bsTrainers.length||1;
-  const trainerW=Math.max(100,Math.min(160,Math.floor(480/n)));
+  const dpr=Math.min(window.devicePixelRatio||1,2);
 
-  // 캔버스 크기
-  const LW=BS_TIME_W+n*trainerW;
-  const LH=BS_HEADER_H+BS_ROW_H+(BS_END_H-BS_START_H+1)*BS_PX_PER_H+10;
-  canvas.width=LW*dpr;canvas.height=LH*dpr;
-  canvas.style.width=LW+'px';canvas.style.height=LH+'px';
+  // 레이아웃 상수
+  const CANVAS_W=1000,LABEL_W=90,SUM_W=44,SUM_N=4;
+  const TOTAL_SUM_W=SUM_W*SUM_N; // 176
+  const TIME_AREA_W=CANVAS_W-LABEL_W-TOTAL_SUM_W; // 734
+  const AM_S=6,AM_E=13,PM_S=12,PM_E=23;
+  const AM_N=AM_E-AM_S+1,PM_N=PM_E-PM_S+1; // 8, 12
+  const AM_CW=Math.floor(TIME_AREA_W/AM_N); // ~91
+  const PM_CW=Math.floor(TIME_AREA_W/PM_N); // ~61
+  const TITLE_H=56,SUB_H=26,TH=28,ROW_H=52,GAP=18,FOOTER_H=44;
+  const nT=_bsTrainers.length||1;
+  const TABLE_H=TH+nT*ROW_H;
+  const CANVAS_H=TITLE_H+SUB_H+TABLE_H+GAP+TABLE_H+FOOTER_H;
+
+  canvas.width=CANVAS_W*dpr;canvas.height=CANVAS_H*dpr;
+  canvas.style.width=CANVAS_W+'px';canvas.style.height=CANVAS_H+'px';
   ctx.scale(dpr,dpr);
 
   // 날짜 파싱
   const[yr,mo,da]=dateStr.split('-').map(Number);
   const dow=new Date(yr,mo-1,da).getDay();
-  const gymName=(me?.gym_location||'')+'점';
+  const gymLoc=me?.gym_location||'';
   const dateLabel=`${mo}/${da}(${BS_DAYS[dow]})`;
-  document.getElementById('bsSubtitle').textContent=`${gymName} · ${dateLabel} · ${_bsTrainers.length}명`;
-  document.getElementById('bsTimeRange').textContent=`오전${BS_START_H}시~오후${BS_END_H-12}시`;
+  document.getElementById('bsSubtitle').textContent=`${gymLoc}점 · ${dateLabel} · 트레이너 ${_bsTrainers.length}명`;
 
-  // 배경
-  ctx.fillStyle='#0a0f1e';ctx.fillRect(0,0,LW,LH);
+  // 셀 색상
+  const CELL_COLORS={PT:'#ffffff',SPT:'#ede8ff',업무:'#ddeeff',청소:'#e4ffe4',홍보:'#ffe4f0',식사:'#ffd6d6'};
+  const FONT=`'Apple SD Gothic Neo','Noto Sans KR',sans-serif`;
 
-  // ── 헤더 ──
-  ctx.fillStyle='#0f1b2d';ctx.fillRect(0,0,LW,BS_HEADER_H);
-  ctx.fillStyle='#c9a84c';ctx.font=`bold ${dpr>1?15:14}px -apple-system,sans-serif`;
-  ctx.textAlign='left';ctx.fillText(`VERA GYM ${gymName}`,BS_TIME_W,26);
-  ctx.fillStyle='#7fb3d3';ctx.font=`${dpr>1?13:12}px -apple-system,sans-serif`;
-  ctx.fillText(`${dateLabel} 전체 트레이너 시간표`,BS_TIME_W,46);
-  ctx.fillStyle='#3a5a7a';ctx.font=`10px -apple-system,sans-serif`;
-  ctx.fillText(`오전 ${BS_START_H}시 ~ 오후 ${BS_END_H-12}시`,BS_TIME_W,62);
+  // ── 흰 배경 ──
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
 
-  // ── 트레이너 이름 행 ──
-  const trY=BS_HEADER_H;
-  ctx.fillStyle='#0f1b2d';ctx.fillRect(0,trY,LW,BS_ROW_H);
-  ctx.strokeStyle='#1e3a5f';ctx.lineWidth=1;
-  ctx.beginPath();ctx.moveTo(0,trY);ctx.lineTo(LW,trY);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(0,trY+BS_ROW_H);ctx.lineTo(LW,trY+BS_ROW_H);ctx.stroke();
-  _bsTrainers.forEach((t,i)=>{
-    const tx=BS_TIME_W+i*trainerW;
-    ctx.strokeStyle='#1e3a5f55';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(tx,trY);ctx.lineTo(tx,LH);ctx.stroke();
-    ctx.fillStyle='#c9d5e8';ctx.font=`bold 13px -apple-system,sans-serif`;
-    ctx.textAlign='center';
-    ctx.fillText(t.name,tx+trainerW/2,trY+BS_ROW_H/2+5);
-  });
+  // ── 제목 ──
+  ctx.fillStyle='#111111';ctx.font=`bold 22px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText(`베라짐 ${gymLoc}점 ${dateLabel} PT팀 데일리차트`,CANVAS_W/2,TITLE_H-14);
+  ctx.fillStyle='#555';ctx.font=`11px ${FONT}`;
+  ctx.fillText('업무 우선순위 : 미팅 → 수업 → 식사 → 청소 → 홍보 → PT',CANVAS_W/2,TITLE_H+10);
 
-  // ── 시간 레이블 & 그리드 ──
-  const gridY=BS_HEADER_H+BS_ROW_H;
-  for(let h=BS_START_H;h<=BS_END_H;h++){
-    const y=gridY+(h-BS_START_H)*BS_PX_PER_H;
-    // 그리드 수평선
-    ctx.strokeStyle='#1e3a5f44';ctx.lineWidth=0.5;
-    ctx.beginPath();ctx.moveTo(BS_TIME_W,y);ctx.lineTo(LW,y);ctx.stroke();
-    // 30분 점선
-    if(h<BS_END_H){
-      ctx.strokeStyle='#1e3a5f22';ctx.lineWidth=0.5;ctx.setLineDash([3,4]);
-      ctx.beginPath();ctx.moveTo(BS_TIME_W,y+BS_PX_PER_H/2);ctx.lineTo(LW,y+BS_PX_PER_H/2);ctx.stroke();
-      ctx.setLineDash([]);
+  // ── 테이블 그리기 함수 ──
+  function drawTable(tableY,startH,endH,colW,sectionLabel){
+    const numCols=endH-startH+1;
+    const tableW=LABEL_W+numCols*colW+TOTAL_SUM_W;
+
+    // 섹션 라벨 셀 (왼쪽 상단)
+    ctx.fillStyle='#f0f0f0';ctx.fillRect(0,tableY,LABEL_W,TH);
+    ctx.fillStyle='#333';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(sectionLabel,LABEL_W/2,tableY+TH/2+4);
+
+    // 헤더 행 배경
+    ctx.fillStyle='#f5f5f5';ctx.fillRect(LABEL_W,tableY,numCols*colW,TH);
+
+    // 시간 헤더 셀
+    for(let i=0;i<numCols;i++){
+      const h=startH+i;
+      const x=LABEL_W+i*colW;
+      const lbl=`${h}시`;
+      ctx.fillStyle='#222';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
+      ctx.fillText(lbl,x+colW/2,tableY+TH/2+4);
+      // 수직 구분선
+      ctx.strokeStyle='#bbb';ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(x,tableY);ctx.lineTo(x,tableY+TABLE_H);ctx.stroke();
     }
-    // 시간 레이블
-    const lbl=h<12?`오전 ${h}시`:h===12?`오후 12시`:`오후 ${h-12}시`;
-    ctx.fillStyle='#3a5a7a';ctx.font=`10px -apple-system,sans-serif`;ctx.textAlign='right';
-    ctx.fillText(lbl,BS_TIME_W-4,h===BS_START_H?y+10:y+4);
+
+    // 요약 열 헤더
+    const sumLabels=['SPT','PT','NS','PT합계'];
+    const sumBgs=['#e8d5ff','#c8e0ff','#ffd5d5','#ffeb9c'];
+    const sumFg=['#5b21b6','#1e40af','#b91c1c','#374151'];
+    sumLabels.forEach((lbl,si)=>{
+      const sx=LABEL_W+numCols*colW+si*SUM_W;
+      ctx.fillStyle=sumBgs[si];ctx.fillRect(sx,tableY,SUM_W,TH);
+      ctx.fillStyle=sumFg[si];ctx.font=`bold 10px ${FONT}`;ctx.textAlign='center';
+      ctx.fillText(lbl,sx+SUM_W/2,tableY+TH/2+4);
+      ctx.strokeStyle='#bbb';ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(sx,tableY);ctx.lineTo(sx,tableY+TABLE_H);ctx.stroke();
+    });
+    // 마지막 요약열 오른쪽 선
+    ctx.beginPath();ctx.moveTo(CANVAS_W,tableY);ctx.lineTo(CANVAS_W,tableY+TABLE_H);ctx.stroke();
+
+    // 트레이너 행
+    _bsTrainers.forEach((trainer,ti)=>{
+      const rowY=tableY+TH+ti*ROW_H;
+      // 행 배경 (교번)
+      ctx.fillStyle=ti%2===0?'#fafafa':'#f3f5f9';
+      ctx.fillRect(0,rowY,CANVAS_W,ROW_H);
+      // 행 하단 구분선
+      ctx.strokeStyle='#ddd';ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(0,rowY+ROW_H);ctx.lineTo(CANVAS_W,rowY+ROW_H);ctx.stroke();
+
+      // 트레이너 이름 셀
+      ctx.fillStyle='#111';ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';
+      ctx.fillText(trainer.name,LABEL_W/2,rowY+ROW_H/2+4);
+
+      // 해당 시간 이벤트 셀
+      for(let i=0;i<numCols;i++){
+        const h=startH+i;
+        const cellX=LABEL_W+i*colW;
+        // 이 트레이너, 이 시간에 시작하는 세션 (여러 개 있을 수 있으면 첫 번째)
+        const sess=_bsSchedules.find(s=>
+          s.trainer_id===trainer.id&&
+          parseInt(s.start_time)===h
+        );
+        if(sess){
+          // 셀 배경색
+          let bg=CELL_COLORS[sess.type]||'#f0f0f0';
+          if(sess.status==='noshow')bg='#ffe0e0';
+          ctx.fillStyle=bg;ctx.fillRect(cellX+1,rowY+1,colW-2,ROW_H-2);
+          // 텍스트
+          ctx.fillStyle=sess.status==='noshow'?'#999':'#111';
+          const memName=sess.members?.name||'';
+          const shortName=memName.length>4?memName.slice(0,4)+'…':memName;
+          ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
+          if(sess.type==='PT'||sess.type==='SPT'){
+            const used=(sess.pt_products?.total_sessions||0)-(sess.pt_products?.remaining_sessions||0);
+            const total=sess.pt_products?.total_sessions||0;
+            ctx.fillText(shortName||sess.type,cellX+colW/2,rowY+15);
+            ctx.fillStyle='#555';ctx.font=`9px ${FONT}`;
+            ctx.fillText(`${sess.type}${used}/${total}`,cellX+colW/2,rowY+27);
+          }else{
+            ctx.fillText(sess.type,cellX+colW/2,rowY+ROW_H/2+4);
+          }
+          // 노쇼 마크
+          if(sess.status==='noshow'){
+            ctx.fillStyle='#e55';ctx.font=`bold 8px ${FONT}`;
+            ctx.fillText('NS',cellX+colW-10,rowY+10);
+          }
+          // 완료 체크
+          if(sess.status==='completed'){
+            ctx.fillStyle='#22c55e';ctx.font=`bold 9px ${FONT}`;
+            ctx.fillText('✓',cellX+colW-9,rowY+10);
+          }
+        }
+      }
+
+      // 요약열
+      const tScheds=_bsSchedules.filter(s=>s.trainer_id===trainer.id);
+      const sptC=tScheds.filter(s=>s.type==='SPT').length;
+      const ptC=tScheds.filter(s=>s.type==='PT').length;
+      const nsC=tScheds.filter(s=>s.status==='noshow').length;
+      const totC=ptC+sptC;
+      [sptC,ptC,nsC,totC].forEach((val,si)=>{
+        const sx=LABEL_W+numCols*colW+si*SUM_W;
+        if(val>0){
+          ctx.fillStyle=sumFg[si];ctx.font=`bold 13px ${FONT}`;ctx.textAlign='center';
+          ctx.fillText(val,sx+SUM_W/2,rowY+ROW_H/2+5);
+        }
+      });
+    });
+
+    // 외곽선
+    ctx.strokeStyle='#999';ctx.lineWidth=1.5;
+    ctx.strokeRect(0,tableY,CANVAS_W,TABLE_H);
+    // 트레이너 라벨열 오른쪽 선
+    ctx.beginPath();ctx.moveTo(LABEL_W,tableY);ctx.lineTo(LABEL_W,tableY+TABLE_H);ctx.stroke();
+    // 헤더 하단선
+    ctx.strokeStyle='#aaa';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(0,tableY+TH);ctx.lineTo(CANVAS_W,tableY+TH);ctx.stroke();
   }
-  // 마지막 그리드 하단 선
-  const botY=gridY+(BS_END_H-BS_START_H+1)*BS_PX_PER_H;
-  ctx.strokeStyle='#1e3a5f44';ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.moveTo(BS_TIME_W,botY);ctx.lineTo(LW,botY);ctx.stroke();
 
-  // ── 이벤트 그리기 ──
-  _bsSchedules.forEach(s=>{
-    const ti=_bsTrainers.findIndex(t=>t.id===s.trainer_id);
-    if(ti<0)return;
-    const[sh,sm]=s.start_time.split(':').map(Number);
-    if(sh<BS_START_H||sh>BS_END_H)return;
-    let eh,em;
-    if(s.end_time){[eh,em]=s.end_time.split(':').map(Number);}else{eh=sh+1;em=sm;}
-    const evTop=gridY+(sh-BS_START_H+sm/60)*BS_PX_PER_H;
-    const evH=Math.max((eh-sh+(em-sm)/60)*BS_PX_PER_H-3,18);
-    const evX=BS_TIME_W+ti*trainerW+3;
-    const evW=trainerW-6;
-    const color=BS_TC[s.type]||'#6c63ff';
-    const isDone=s.status==='completed'||s.status==='noshow';
-    ctx.globalAlpha=isDone?0.4:1;
-    // 이벤트 배경
-    ctx.fillStyle=color+'cc';
-    _bsRR(ctx,evX,evTop,evW,evH,4);ctx.fill();
-    // 노쇼 앰버 오버레이
-    if(s.status==='noshow'){ctx.fillStyle='#f59e0b99';_bsRR(ctx,evX,evTop,evW,evH,4);ctx.fill();}
-    ctx.globalAlpha=1;
-    // 텍스트
-    ctx.fillStyle=isDone?'#ffffff88':'#ffffff';
-    ctx.font=`bold 11px -apple-system,sans-serif`;ctx.textAlign='center';
-    const mem=(s.members?.name||s.type||'');
-    const shortMem=mem.length>5?mem.slice(0,5)+'…':mem;
-    if(evH>28){
-      ctx.fillText(shortMem,evX+evW/2,evTop+14);
-      ctx.font=`9px -apple-system,sans-serif`;ctx.fillStyle='#ffffff77';
-      ctx.fillText(s.start_time.slice(0,5),evX+evW/2,evTop+25);
-    }else{
-      ctx.fillText(shortMem,evX+evW/2,evTop+evH/2+4);
-    }
-    if(isDone){
-      ctx.fillStyle='#ffffff99';ctx.font=`bold 10px sans-serif`;
-      ctx.fillText('✓',evX+evW-8,evTop+12);
-    }
+  // ── 오전 테이블 ──
+  const amY=TITLE_H+SUB_H;
+  drawTable(amY,AM_S,AM_E,AM_CW,'오전 시간');
+
+  // ── 오후 테이블 ──
+  const pmY=amY+TABLE_H+GAP;
+  drawTable(pmY,PM_S,PM_E,PM_CW,'오후 시간');
+
+  // ── 합계 행 (오후 테이블 하단) ──
+  const sumRowY=pmY+TABLE_H;
+  ctx.fillStyle='#fffde7';ctx.fillRect(0,sumRowY,CANVAS_W,TH);
+  ctx.strokeStyle='#aaa';ctx.lineWidth=1;
+  ctx.strokeRect(0,sumRowY,CANVAS_W,TH);
+  ctx.fillStyle='#555';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('합계',LABEL_W/2,sumRowY+TH/2+4);
+  const totSPT=_bsSchedules.filter(s=>s.type==='SPT').length;
+  const totPT=_bsSchedules.filter(s=>s.type==='PT').length;
+  const totNS=_bsSchedules.filter(s=>s.status==='noshow').length;
+  const totAll=totPT+totSPT;
+  const sumFgC=['#5b21b6','#1e40af','#b91c1c','#374151'];
+  const PM_N_CALC=PM_E-PM_S+1;
+  [totSPT,totPT,totNS,totAll].forEach((val,si)=>{
+    const sx=LABEL_W+PM_N_CALC*(Math.floor(TIME_AREA_W/PM_N_CALC))+si*SUM_W;
+    ctx.fillStyle=sumFgC[si];ctx.font=`bold 14px ${FONT}`;
+    ctx.fillText(val,sx+SUM_W/2,sumRowY+TH/2+5);
   });
+
+  // ── 예고 메모 (footer) ──
+  const footerY=sumRowY+TH+8;
+  const scheduled=_bsSchedules.filter(s=>s.status==='scheduled'&&(s.type==='PT'||s.type==='SPT'));
+  if(scheduled.length){
+    const byTrainer=_bsTrainers.map(t=>{
+      const tS=scheduled.filter(s=>s.trainer_id===t.id);
+      if(!tS.length)return null;
+      const parts=tS.map(s=>{
+        const h=parseInt(s.start_time);
+        const used=(s.pt_products?.total_sessions||0)-(s.pt_products?.remaining_sessions||0);
+        const tot=s.pt_products?.total_sessions||0;
+        return`${h}시 ${s.members?.name||''}PT${used}/${tot}`;
+      });
+      return`${t.name} - ${parts.join(', ')}`;
+    }).filter(Boolean);
+    ctx.fillStyle='#444';ctx.font=`11px ${FONT}`;ctx.textAlign='center';
+    // 2줄로 나눠서 표시
+    const line1=byTrainer.slice(0,Math.ceil(byTrainer.length/2)).join(' | ');
+    const line2=byTrainer.slice(Math.ceil(byTrainer.length/2)).join(' | ');
+    ctx.fillText(line1,CANVAS_W/2,footerY+14);
+    if(line2)ctx.fillText(line2,CANVAS_W/2,footerY+30);
+  }
 }
 
 async function downloadBranchSched(){
   const canvas=document.getElementById('bsCanvas');
-  const dateStr=document.getElementById('bsDatePicker').value||toYMD(new Date());
+  const dateStr=_bsCurrentDate||toYMD(new Date());
   const[yr,mo,da]=dateStr.split('-');
   const fname=`베라짐_시간표_${yr}${mo}${da}.jpg`;
   try{
-    // 1. Web Share API (iOS 15+, Android Chrome) - 가장 매끄러운 방식
-    const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',0.92));
+    const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',0.93));
     const file=new File([blob],fname,{type:'image/jpeg'});
     if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-      await navigator.share({files:[file],title:'베라짐 시간표'});
-      return;
+      await navigator.share({files:[file],title:'베라짐 시간표'});return;
     }
   }catch(e){if(e.name==='AbortError')return;}
-  // 2. Fallback: anchor download (Android Chrome/Desktop)
-  const url=canvas.toDataURL('image/jpeg',0.92);
+  const url=canvas.toDataURL('image/jpeg',0.93);
   const a=document.createElement('a');
   a.href=url;a.download=fname;
   document.body.appendChild(a);a.click();
   setTimeout(()=>document.body.removeChild(a),200);
-  // 3. iOS Safari 추가 fallback: 새 탭으로 열어 사용자가 "이미지 저장" 가능
   if(/iPhone|iPad/i.test(navigator.userAgent)){
-    setTimeout(()=>{const w=window.open();if(w){w.document.write(`<img src="${url}" style="max-width:100%">`);w.document.title='시간표';}},400);
+    setTimeout(()=>{const w=window.open();if(w){w.document.write(`<img src="${url}" style="max-width:100%;display:block;">`);w.document.title='시간표';}},500);
   }
 }
 

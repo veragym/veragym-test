@@ -124,25 +124,25 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 @keyframes spin { to{transform:rotate(360deg)} }
 
 /* ──── 일정 탭 ──────────────────────────────── */
-#tab-schedule { padding: 0; }
-.cal-header { display:flex; align-items:center; justify-content:space-between; padding:14px 14px 8px; }
-.cal-range-label { font-size:13px; font-weight:600; color:#e0e0e0; }
-.cal-nav-btn { background:none; border:1px solid #3a3a5c; color:#aaa; border-radius:6px; padding:4px 10px; font-size:14px; cursor:pointer; }
-.cal-days-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:0 10px 8px; }
-.cal-day-col { background:#1e1e2e; border-radius:10px; padding:8px 6px; cursor:pointer; min-height:70px; transition:background .15s; }
-.cal-day-col:hover { background:#2a2a3e; }
-.cal-day-col.selected { background:#2a2a3e; border:1px solid #6c63ff; }
-.cal-day-col.today .cal-day-num { color:#6c63ff; font-weight:700; }
-.cal-day-name { font-size:10px; color:#888; text-align:center; margin-bottom:2px; }
-.cal-day-num  { font-size:16px; font-weight:600; color:#e0e0e0; text-align:center; margin-bottom:6px; }
-.cal-event-dot { font-size:11px; line-height:1.4; color:#ccc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-radius:4px; padding:1px 4px; margin-bottom:2px; }
-.cal-detail { padding:10px 14px 0; }
-.cal-detail-title { font-size:13px; color:#aaa; margin-bottom:8px; }
-.sched-card { background:#1e1e2e; border-radius:10px; padding:12px 14px; margin-bottom:8px; cursor:pointer; border-left:4px solid #6c63ff; }
-.sched-card-time  { font-size:12px; color:#aaa; margin-bottom:3px; }
-.sched-card-title { font-size:14px; font-weight:600; color:#e0e0e0; }
-.sched-card-member{ font-size:12px; color:#888; margin-top:2px; }
-.cal-add-btn { background:#6c63ff; border:none; color:#fff; border-radius:8px; padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+#tab-schedule{padding:0}
+.cal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 8px}
+.cal-range-label{font-size:13px;font-weight:600;color:#e0e0e0}
+.cal-nav-btn{background:none;border:1px solid #3a3a5c;color:#aaa;border-radius:6px;padding:4px 10px;font-size:14px;cursor:pointer}
+.cal-days-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0 10px 8px}
+.cal-day-col{background:#1e1e2e;border-radius:10px;padding:8px 6px;cursor:pointer;min-height:70px;transition:background .15s}
+.cal-day-col:hover{background:#2a2a3e}
+.cal-day-col.selected{background:#2a2a3e;border:1px solid #6c63ff}
+.cal-day-col.today .cal-day-num{color:#6c63ff;font-weight:700}
+.cal-day-name{font-size:10px;color:#888;text-align:center;margin-bottom:2px}
+.cal-day-num{font-size:16px;font-weight:600;color:#e0e0e0;text-align:center;margin-bottom:6px}
+.cal-event-dot{font-size:11px;line-height:1.4;color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:4px;padding:1px 4px;margin-bottom:2px}
+.cal-detail{padding:10px 14px 0}
+.cal-detail-title{font-size:13px;color:#aaa;margin-bottom:8px}
+.sched-card{background:#1e1e2e;border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;border-left:4px solid #6c63ff}
+.sched-card-time{font-size:12px;color:#aaa;margin-bottom:3px}
+.sched-card-title{font-size:14px;font-weight:600;color:#e0e0e0}
+.sched-card-member{font-size:12px;color:#888;margin-top:2px}
+.cal-add-btn{background:#6c63ff;border:none;color:#fff;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer}
 </style>
 </head>
 <body>
@@ -645,115 +645,55 @@ init();
 window.addEventListener('pageshow', (e) => {
   if (e.persisted && !me) init();
 });
-</script>
-<script>
-<script>
-// ══════════════════════════════════════════════════════════════
-// 일정(Schedule) 기능
-// ══════════════════════════════════════════════════════════════
-let calBaseDate     = new Date();
-let scheduleData    = [];
-let selectedCalDate = null;
-let myMembersForSched = [];
-let _schedEditId    = null;
-let _schedColor     = '#6c63ff';
 
-// YYYY-MM-DD
-function toYMD(d) { return d.toISOString().slice(0,10); }
-function fromYMD(s) { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
-// HH:MM
-function toHM(t) { return t ? t.slice(0,5) : ''; }
-
-// 4일 이동
-function shiftWeek(days) { calBaseDate = new Date(calBaseDate); calBaseDate.setDate(calBaseDate.getDate()+days); loadScheduleView(); }
-
-async function loadScheduleView() {
-  const dates = [];
-  for (let i=0; i<4; i++) { const d=new Date(calBaseDate); d.setDate(d.getDate()+i); dates.push(d); }
-
-  const fmt = d => `${d.getMonth()+1}/${d.getDate()}`;
-  document.getElementById('calRangeLabel').textContent = `${fmt(dates[0])} - ${fmt(dates[3])}`;
-
-  const from = toYMD(dates[0]);
-  const to   = toYMD(dates[3]);
-
-  const { data, error } = await db.from('schedules')
-    .select('*').gte('sched_date', from).lte('sched_date', to).order('start_time');
-  scheduleData = data || [];
-
-  // 회원 목록 (모달용)
-  if (!myMembersForSched.length && me) {
-    const { data: mems } = await db.from('members').select('id, name').eq('trainer_id', me.id).eq('is_active', true).order('name');
-    myMembersForSched = mems || [];
-  }
-
-  if (!selectedCalDate || !dates.find(d => toYMD(d) === toYMD(selectedCalDate))) {
-    selectedCalDate = dates[0];
-  }
-  renderCalDays(dates);
-  renderCalDetail(selectedCalDate);
-
-  // + 일정 추가 버튼
-  document.getElementById('calAddBtn').onclick = () => openSchedModal(null, toYMD(selectedCalDate));
+// ══════════ 일정 기능 ══════════
+let calBaseDate=new Date(),scheduleData=[],selectedCalDate=null,myMembersForSched=[],_schedEditId=null,_schedColor='#6c63ff';
+function toYMD(d){return d.toISOString().slice(0,10);}
+function fromYMD(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function toHM(t){return t?t.slice(0,5):'';}
+function shiftWeek(days){calBaseDate=new Date(calBaseDate);calBaseDate.setDate(calBaseDate.getDate()+days);loadScheduleView();}
+async function loadScheduleView(){
+  const dates=[];for(let i=0;i<4;i++){const d=new Date(calBaseDate);d.setDate(d.getDate()+i);dates.push(d);}
+  const fmt=d=>`${d.getMonth()+1}/${d.getDate()}`;
+  document.getElementById('calRangeLabel').textContent=`${fmt(dates[0])} - ${fmt(dates[3])}`;
+  const from=toYMD(dates[0]),to=toYMD(dates[3]);
+  const{data}=await db.from('schedules').select('*').gte('sched_date',from).lte('sched_date',to).order('start_time');
+  scheduleData=data||[];
+  if(!myMembersForSched.length&&me){const{data:mems}=await db.from('members').select('id,name').eq('trainer_id',me.id).eq('is_active',true).order('name');myMembersForSched=mems||[];}
+  if(!selectedCalDate||!dates.find(d=>toYMD(d)===toYMD(selectedCalDate)))selectedCalDate=dates[0];
+  renderCalDays(dates);renderCalDetail(selectedCalDate);
+  document.getElementById('calAddBtn').onclick=()=>openSchedModal(null,toYMD(selectedCalDate));
 }
-
-const DAY_KO = ['일','월','화','수','목','금','토'];
-
-function renderCalDays(dates) {
-  const today = toYMD(new Date());
-  const cols  = document.getElementById('calDaysCols');
-  cols.innerHTML = dates.map(d => {
-    const ymd       = toYMD(d);
-    const isToday   = ymd === today;
-    const isSel     = selectedCalDate && toYMD(selectedCalDate) === ymd;
-    const events    = scheduleData.filter(s => s.sched_date === ymd);
-    const evHtml    = events.slice(0,3).map(s =>
-      `<div class="cal-event-dot" style="background:${s.color||'#6c63ff'}22;border-left:3px solid ${s.color||'#6c63ff'}">${toHM(s.start_time)} ${s.title||''}</div>`
-    ).join('');
-    return `<div class="cal-day-col${isToday?' today':''}${isSel?' selected':''}" onclick="selectCalDay('${ymd}')">
-      <div class="cal-day-name">${DAY_KO[d.getDay()]}</div>
-      <div class="cal-day-num">${d.getDate()}</div>
-      ${evHtml}
-    </div>`;
+const DAY_KO=['일','월','화','수','목','금','토'];
+function renderCalDays(dates){
+  const today=toYMD(new Date());
+  document.getElementById('calDaysCols').innerHTML=dates.map(d=>{
+    const ymd=toYMD(d),isToday=ymd===today,isSel=selectedCalDate&&toYMD(selectedCalDate)===ymd;
+    const events=scheduleData.filter(s=>s.sched_date===ymd);
+    const evHtml=events.slice(0,3).map(s=>`<div class="cal-event-dot" style="background:${s.color||'#6c63ff'}22;border-left:3px solid ${s.color||'#6c63ff'}">${toHM(s.start_time)} ${s.title||''}</div>`).join('');
+    return `<div class="cal-day-col${isToday?' today':''}${isSel?' selected':''}" onclick="selectCalDay('${ymd}')"><div class="cal-day-name">${DAY_KO[d.getDay()]}</div><div class="cal-day-num">${d.getDate()}</div>${evHtml}</div>`;
   }).join('');
 }
-
-function selectCalDay(ymd) {
-  selectedCalDate = fromYMD(ymd);
-  renderCalDays(Array.from({length:4},(_,i)=>{ const d=new Date(calBaseDate); d.setDate(d.getDate()+i); return d; }));
-  renderCalDetail(selectedCalDate);
-  document.getElementById('calAddBtn').onclick = () => openSchedModal(null, ymd);
+function selectCalDay(ymd){
+  selectedCalDate=fromYMD(ymd);
+  const dates=Array.from({length:4},(_,i)=>{const d=new Date(calBaseDate);d.setDate(d.getDate()+i);return d;});
+  renderCalDays(dates);renderCalDetail(selectedCalDate);
+  document.getElementById('calAddBtn').onclick=()=>openSchedModal(null,ymd);
 }
-
-function renderCalDetail(date) {
-  const ymd    = toYMD(date);
-  const detail = document.getElementById('calDetail');
-  const events = scheduleData.filter(s => s.sched_date === ymd);
-  const fmt    = d => `${d.getMonth()+1}월 ${d.getDate()}일 (${DAY_KO[d.getDay()]})`;
-  if (!events.length) {
-    detail.innerHTML = `<div class="cal-detail-title">${fmt(date)} — 일정 없음</div>`;
-    return;
-  }
-  detail.innerHTML = `<div class="cal-detail-title">${fmt(date)}</div>` +
-    events.map(s => {
-      const member = myMembersForSched.find(m => m.id === s.member_id);
-      return `<div class="sched-card" style="border-left-color:${s.color||'#6c63ff'}" onclick="openSchedModal('${s.id}', null)">
-        <div class="sched-card-time">${toHM(s.start_time)}${s.end_time?' ~ '+toHM(s.end_time):''}</div>
-        <div class="sched-card-title">${s.title||'수업'}</div>
-        ${member ? `<div class="sched-card-member">${member.name}</div>` : ''}
-      </div>`;
-    }).join('');
+function renderCalDetail(date){
+  const ymd=toYMD(date),detail=document.getElementById('calDetail');
+  const events=scheduleData.filter(s=>s.sched_date===ymd);
+  const fmt=d=>`${d.getMonth()+1}월 ${d.getDate()}일 (${DAY_KO[d.getDay()]})`;
+  if(!events.length){detail.innerHTML=`<div class="cal-detail-title">${fmt(date)} — 일정 없음</div>`;return;}
+  detail.innerHTML=`<div class="cal-detail-title">${fmt(date)}</div>`+events.map(s=>{
+    const member=myMembersForSched.find(m=>m.id===s.member_id);
+    return `<div class="sched-card" style="border-left-color:${s.color||'#6c63ff'}" onclick="openSchedModal('${s.id}',null)"><div class="sched-card-time">${toHM(s.start_time)}${s.end_time?' ~ '+toHM(s.end_time):''}</div><div class="sched-card-title">${s.title||'수업'}</div>${member?`<div class="sched-card-member">${member.name}</div>`:''}</div>`;
+  }).join('');
 }
-
-// switchTab 후크: 일정 탭 진입 시 자동 로드
-const _origSwitchTab = switchTab;
-switchTab = function(id, btn) {
-  _origSwitchTab(id, btn);
-  if (id === 'schedule') loadScheduleView();
-};
+const _origSwitchTab=switchTab;
+switchTab=function(id,btn){_origSwitchTab(id,btn);if(id==='schedule')loadScheduleView();};
 </script>
-
-
+<script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/veragym-app/service-worker.js').catch(()=>{});
@@ -766,157 +706,91 @@ if ('serviceWorker' in navigator) {
   <div style="background:#1e1e2e;width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:24px 20px 32px;box-sizing:border-box;max-height:90vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
       <h3 id="schedModalTitle" style="margin:0;font-size:17px;font-weight:700;color:#fff;">일정 추가</h3>
-      <button onclick="closeSchedModal()" style="background:none;border:none;color:#aaa;font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+      <button onclick="closeSchedModal()" style="background:none;border:none;color:#aaa;font-size:22px;cursor:pointer;">&times;</button>
     </div>
     <div id="schedModalErr" style="display:none;background:#ff4d4f22;color:#ff4d4f;border:1px solid #ff4d4f55;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px;"></div>
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">날짜</label>
-      <input id="schedDate" type="date" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;">
-    </div>
+    <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">날짜</label>
+      <input id="schedDate" type="date" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;"></div>
     <div style="display:flex;gap:12px;margin-bottom:14px;">
-      <div style="flex:1;">
-        <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">시작 시간</label>
-        <input id="schedStart" type="time" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;">
-      </div>
-      <div style="flex:1;">
-        <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">종료 시간</label>
-        <input id="schedEnd" type="time" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;">
-      </div>
+      <div style="flex:1;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">시작</label>
+        <input id="schedStart" type="time" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;"></div>
+      <div style="flex:1;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">종료</label>
+        <input id="schedEnd" type="time" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;"></div>
     </div>
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">제목</label>
-      <input id="schedTitle" type="text" placeholder="예) 개인 PT, 그룹 수업" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;">
-    </div>
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">회원 (선택)</label>
+    <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">제목</label>
+      <input id="schedTitle" type="text" placeholder="예) 개인 PT" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;"></div>
+    <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">회원 (선택)</label>
       <select id="schedMember" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;-webkit-appearance:none;">
-        <option value="">-- 회원 없음 --</option>
-      </select>
-    </div>
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:12px;color:#aaa;margin-bottom:8px;">색상</label>
-      <div id="schedColorPicker" style="display:flex;gap:10px;flex-wrap:wrap;">
+        <option value="">-- 회원 없음 --</option></select></div>
+    <div style="margin-bottom:14px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:8px;">색상</label>
+      <div id="schedColorPicker" style="display:flex;gap:10px;">
         <span data-color="#6c63ff" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#6c63ff;cursor:pointer;border:3px solid #fff;box-sizing:border-box;"></span>
         <span data-color="#4fc3f7" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#4fc3f7;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
         <span data-color="#81c784" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#81c784;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
         <span data-color="#ffb74d" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#ffb74d;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
         <span data-color="#f06292" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#f06292;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
-        <span data-color="#90a4ae" onclick="selectSchedColor(this)" style="width:28px;height:28px;border-radius:50%;background:#90a4ae;cursor:pointer;border:3px solid transparent;box-sizing:border-box;"></span>
-      </div>
-    </div>
-    <div style="margin-bottom:20px;">
-      <label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">메모 (선택)</label>
-      <textarea id="schedNotes" rows="3" placeholder="추가 메모..." style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;resize:vertical;font-family:inherit;"></textarea>
-    </div>
+      </div></div>
+    <div style="margin-bottom:20px;"><label style="display:block;font-size:12px;color:#aaa;margin-bottom:6px;">메모</label>
+      <textarea id="schedNotes" rows="3" style="width:100%;background:#2a2a3e;border:1px solid #3a3a5c;border-radius:8px;color:#fff;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none;resize:vertical;font-family:inherit;"></textarea></div>
     <div style="display:flex;gap:10px;">
       <button id="schedDeleteBtn" onclick="deleteSchedule()" style="display:none;flex:1;background:#3a1a1a;border:1px solid #ff4d4f55;color:#ff4d4f;border-radius:10px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;">삭제</button>
       <button id="schedSaveBtn" onclick="saveSchedule()" style="flex:2;background:#6c63ff;border:none;color:#fff;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;">저장</button>
     </div>
   </div>
 </div>
-
 <script>
-function selectSchedColor(el) {
-  _schedColor = el.dataset.color;
-  document.querySelectorAll('#schedColorPicker span').forEach(s => s.style.border='3px solid transparent');
-  el.style.border = '3px solid #fff';
-}
-
-function openSchedModal(schedId, date) {
-  const sel = document.getElementById('schedMember');
-  sel.innerHTML = '<option value="">-- 회원 없음 --</option>';
-  (myMembersForSched||[]).forEach(m => {
-    const o=document.createElement('option'); o.value=m.id; o.textContent=m.name; sel.appendChild(o);
-  });
-  _schedColor = '#6c63ff';
-  document.querySelectorAll('#schedColorPicker span').forEach((s,i) => s.style.border = i===0?'3px solid #fff':'3px solid transparent');
-
-  if (schedId) {
-    db.from('schedules').select('*').eq('id',schedId).single().then(({data}) => {
-      if (!data) return;
-      document.getElementById('schedDate').value  = data.sched_date;
-      document.getElementById('schedStart').value = toHM(data.start_time);
-      document.getElementById('schedEnd').value   = toHM(data.end_time);
-      document.getElementById('schedTitle').value = data.title||'';
-      document.getElementById('schedNotes').value = data.notes||'';
-      sel.value = data.member_id||'';
-      if (data.color) {
-        _schedColor = data.color;
-        document.querySelectorAll('#schedColorPicker span').forEach(s => s.style.border = s.dataset.color===data.color?'3px solid #fff':'3px solid transparent');
-      }
+function selectSchedColor(el){_schedColor=el.dataset.color;document.querySelectorAll('#schedColorPicker span').forEach(s=>s.style.border='3px solid transparent');el.style.border='3px solid #fff';}
+function openSchedModal(schedId,date){
+  const sel=document.getElementById('schedMember');
+  sel.innerHTML='<option value="">-- 회원 없음 --</option>';
+  (myMembersForSched||[]).forEach(m=>{const o=document.createElement('option');o.value=m.id;o.textContent=m.name;sel.appendChild(o);});
+  _schedColor='#6c63ff';document.querySelectorAll('#schedColorPicker span').forEach((s,i)=>s.style.border=i===0?'3px solid #fff':'3px solid transparent');
+  if(schedId){
+    db.from('schedules').select('*').eq('id',schedId).single().then(({data})=>{
+      if(!data)return;
+      document.getElementById('schedDate').value=data.sched_date;
+      document.getElementById('schedStart').value=toHM(data.start_time);
+      document.getElementById('schedEnd').value=toHM(data.end_time);
+      document.getElementById('schedTitle').value=data.title||'';
+      document.getElementById('schedNotes').value=data.notes||'';
+      sel.value=data.member_id||'';
+      if(data.color){_schedColor=data.color;document.querySelectorAll('#schedColorPicker span').forEach(s=>s.style.border=s.dataset.color===data.color?'3px solid #fff':'3px solid transparent');}
       document.getElementById('schedDeleteBtn').style.display='block';
       document.getElementById('schedModalTitle').textContent='일정 수정';
     });
-  } else {
-    document.getElementById('schedDate').value  = date||'';
-    document.getElementById('schedStart').value = '';
-    document.getElementById('schedEnd').value   = '';
-    document.getElementById('schedTitle').value = '';
-    document.getElementById('schedNotes').value = '';
-    sel.value = '';
-    document.getElementById('schedDeleteBtn').style.display='none';
+  }else{
+    ['schedDate','schedStart','schedEnd','schedTitle','schedNotes'].forEach(id=>document.getElementById(id).value='');
+    sel.value='';document.getElementById('schedDeleteBtn').style.display='none';
+    document.getElementById('schedDate').value=date||'';
     document.getElementById('schedModalTitle').textContent='일정 추가';
   }
-  _schedEditId = schedId||null;
+  _schedEditId=schedId||null;
   document.getElementById('schedModalErr').style.display='none';
-  const modal = document.getElementById('schedModal');
-  modal.style.display='flex';
+  document.getElementById('schedModal').style.display='flex';
   document.body.style.overflow='hidden';
 }
-
-function closeSchedModal() {
-  document.getElementById('schedModal').style.display='none';
-  document.body.style.overflow='';
-  _schedEditId=null;
-}
-
-async function saveSchedule() {
-  const btn   = document.getElementById('schedSaveBtn');
-  const errEl = document.getElementById('schedModalErr');
-  const date  = document.getElementById('schedDate').value.trim();
-  const start = document.getElementById('schedStart').value.trim();
-  const end   = document.getElementById('schedEnd').value.trim();
-  const title = document.getElementById('schedTitle').value.trim();
-  const notes = document.getElementById('schedNotes').value.trim();
-  const memberId = document.getElementById('schedMember').value||null;
-
+function closeSchedModal(){document.getElementById('schedModal').style.display='none';document.body.style.overflow='';_schedEditId=null;}
+async function saveSchedule(){
+  const btn=document.getElementById('schedSaveBtn'),errEl=document.getElementById('schedModalErr');
+  const date=document.getElementById('schedDate').value.trim();
+  const start=document.getElementById('schedStart').value.trim();
   errEl.style.display='none';
-  if (!date)  { errEl.textContent='날짜를 입력해주세요.'; errEl.style.display='block'; return; }
-  if (!start) { errEl.textContent='시작 시간을 입력해주세요.'; errEl.style.display='block'; return; }
-
-  btn.disabled=true; btn.textContent='저장 중...';
-  const payload = {
-    trainer_id: me.id,
-    sched_date: date,
-    start_time: start,
-    end_time:   end||null,
-    title:      title||'수업',
-    notes:      notes||null,
-    color:      _schedColor,
-    member_id:  memberId,
-  };
-
+  if(!date){errEl.textContent='날짜를 입력해주세요.';errEl.style.display='block';return;}
+  if(!start){errEl.textContent='시작 시간을 입력해주세요.';errEl.style.display='block';return;}
+  btn.disabled=true;btn.textContent='저장 중...';
+  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,title:document.getElementById('schedTitle').value.trim()||'수업',notes:document.getElementById('schedNotes').value.trim()||null,color:_schedColor,member_id:document.getElementById('schedMember').value||null};
   let error;
-  if (_schedEditId) {
-    ({error} = await db.from('schedules').update(payload).eq('id',_schedEditId));
-  } else {
-    ({error} = await db.from('schedules').insert(payload));
-  }
-  btn.disabled=false; btn.textContent='저장';
-  if (error) { errEl.textContent=error.message; errEl.style.display='block'; return; }
-  closeSchedModal();
-  showToast(_schedEditId?'일정 수정 완료':'일정 추가 완료');
-  await loadScheduleView();
+  if(_schedEditId){({error}=await db.from('schedules').update(payload).eq('id',_schedEditId));}
+  else{({error}=await db.from('schedules').insert(payload));}
+  btn.disabled=false;btn.textContent='저장';
+  if(error){errEl.textContent=error.message;errEl.style.display='block';return;}
+  closeSchedModal();showToast(_schedEditId?'일정 수정 완료':'일정 추가 완료');await loadScheduleView();
 }
-
-async function deleteSchedule() {
-  if (!_schedEditId) return;
-  if (!confirm('이 일정을 삭제할까요?')) return;
-  const {error} = await db.from('schedules').delete().eq('id',_schedEditId);
-  if (error) { showToast('삭제 실패: '+error.message); return; }
-  closeSchedModal();
-  showToast('일정 삭제 완료');
-  await loadScheduleView();
+async function deleteSchedule(){
+  if(!_schedEditId||!confirm('이 일정을 삭제할까요?'))return;
+  const{error}=await db.from('schedules').delete().eq('id',_schedEditId);
+  if(error){showToast('삭제 실패: '+error.message);return;}
+  closeSchedModal();showToast('일정 삭제 완료');await loadScheduleView();
 }
 </script>
 

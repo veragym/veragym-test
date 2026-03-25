@@ -792,14 +792,23 @@ function renderSiActions(){
   if(!_siTarget)return;
   const s=_siTarget;
   const acts=document.getElementById('siActions');
+  const isPtSpt=(s.type==='PT'||s.type==='SPT');
   if(s.status==='scheduled'){
-    acts.innerHTML=`
-      <button id="siBtnComplete" onclick="siAction('complete')" style="width:100%;background:#22c55e22;border:1.5px solid #22c55e55;color:#4ade80;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">완료 처리</button>
-      <button id="siBtnNoshow" onclick="siAction('noshow')" style="width:100%;background:#f59e0b22;border:1.5px solid #f59e0b55;color:#fbbf24;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">노쇼 처리</button>
-      <div style="display:flex;gap:10px;">
-        <button id="siBtnCancel" onclick="siAction('cancel')" style="flex:1;background:#ff4d4f22;border:1.5px solid #ff4d4f55;color:#ff4d4f;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">예약 취소</button>
-        <button onclick="closeSchedInfo();openSchedModal('${s.id}',null,null)" style="flex:1;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">수정</button>
-      </div>`;
+    if(isPtSpt){
+      acts.innerHTML=`
+        <button id="siBtnComplete" onclick="siAction('complete')" style="width:100%;background:#22c55e22;border:1.5px solid #22c55e55;color:#4ade80;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">완료 처리</button>
+        <button id="siBtnNoshow" onclick="siAction('noshow')" style="width:100%;background:#f59e0b22;border:1.5px solid #f59e0b55;color:#fbbf24;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">노쇼 처리</button>
+        <div style="display:flex;gap:10px;">
+          <button id="siBtnCancel" onclick="siAction('cancel')" style="flex:1;background:#ff4d4f22;border:1.5px solid #ff4d4f55;color:#ff4d4f;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">예약 취소</button>
+          <button onclick="closeSchedInfo();openSchedModal('${s.id}',null,null)" style="flex:1;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">수정</button>
+        </div>`;
+    }else{
+      acts.innerHTML=`
+        <div style="display:flex;gap:10px;">
+          <button id="siBtnCancel" onclick="siAction('cancel')" style="flex:1;background:#ff4d4f22;border:1.5px solid #ff4d4f55;color:#ff4d4f;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">예약 취소</button>
+          <button onclick="closeSchedInfo();openSchedModal('${s.id}',null,null)" style="flex:1;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">수정</button>
+        </div>`;
+    }
   }else{
     acts.innerHTML=`<button onclick="closeSchedInfo()" style="width:100%;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">닫기</button>`;
   }

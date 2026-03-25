@@ -1446,10 +1446,12 @@ function scRenderCal(){
       const memName=s.members?.name||'';
       const trainerName=s.trainers?.name||'';
       let stxt='';
-      if(sType==='PT'&&s.pt_products){const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);stxt=` ${u}/${s.pt_products.total_sessions||0}`;}
-      // 전체 트레이너 시: 이름+트레이너명 / 개별 선택 시: 이름+유형+회차
+      if(sType==='PT'&&s.pt_products){const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);stxt=`${u}/${s.pt_products.total_sessions||0}`;}
       const line1=memName||sType;
-      const line2=scTrainerId?(memName?`${sType}${stxt}`:''):(trainerName||'');
+      // PT: 항상 회차 표시. 전체 트레이너 시 트레이너명 앞에 붙임
+      let line2='';
+      if(sType==='PT'&&stxt){line2=scTrainerId?`PT ${stxt}`:(trainerName?`${trainerName} ${stxt}`:stxt);}
+      else{line2=scTrainerId?'':(trainerName||'');}
       const sid=s.id;
       col+=`<div class="sc-event" style="background:${evBg}dd;opacity:${evOp};top:${top}px;height:${height}px;" onclick="event.stopPropagation();scOpenInfo(scData.find(x=>x.id==='${sid}'))">${evExtra}<div class="sc-ev-title">${line1}</div>${line2?`<div class="sc-ev-sub">${line2}</div>`:''}</div>`;
     });
@@ -1497,14 +1499,16 @@ function scRenderList(){
 }
 
 function scBuildActBtns(s){
-  const id=s.id;let b='';
+  const id=s.id;const isPtSpt=(s.type==='PT'||s.type==='SPT');let b='';
   if(s.status==='scheduled'){
-    b+=`<button class="sc-btn sc-btn-green" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">완료</button>`;
-    b+=`<button class="sc-btn sc-btn-amber" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">노쇼</button>`;
+    if(isPtSpt){
+      b+=`<button class="sc-btn sc-btn-green" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">완료</button>`;
+      b+=`<button class="sc-btn sc-btn-amber" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">노쇼</button>`;
+    }
     b+=`<button class="sc-btn sc-btn-red" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">취소</button>`;
   }
-  if(s.status==='completed')b+=`<button class="sc-btn sc-btn-gold" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">완료 롤백</button>`;
-  if(s.status==='noshow')b+=`<button class="sc-btn sc-btn-gold" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">노쇼 롤백</button>`;
+  if(isPtSpt&&s.status==='completed')b+=`<button class="sc-btn sc-btn-gold" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">완료 롤백</button>`;
+  if(isPtSpt&&s.status==='noshow')b+=`<button class="sc-btn sc-btn-gold" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">노쇼 롤백</button>`;
   return b;
 }
 
@@ -1536,14 +1540,17 @@ function scOpenInfo(sched){
 
 function scRenderInfoActions(){
   const s=scTarget;const acts=document.getElementById('scInfoActions');
+  const isPtSpt=(s.type==='PT'||s.type==='SPT');
   let b=`<button class="btn-cancel" style="flex:1;" onclick="closeModal('scInfoModal')">닫기</button>`;
   if(s.status==='scheduled'){
-    b+=`<button class="sc-btn sc-btn-green" style="flex:1;" onclick="scAskConfirm('complete')">완료 처리</button>`;
-    b+=`<button class="sc-btn sc-btn-amber" style="flex:1;" onclick="scAskConfirm('noshow')">노쇼 처리</button>`;
+    if(isPtSpt){
+      b+=`<button class="sc-btn sc-btn-green" style="flex:1;" onclick="scAskConfirm('complete')">완료 처리</button>`;
+      b+=`<button class="sc-btn sc-btn-amber" style="flex:1;" onclick="scAskConfirm('noshow')">노쇼 처리</button>`;
+    }
     b+=`<button class="sc-btn sc-btn-red" style="flex:1;" onclick="scAskConfirm('cancel')">예약 취소</button>`;
   }
-  if(s.status==='completed')b+=`<button class="sc-btn sc-btn-gold" style="flex:1;" onclick="scAskConfirm('rollback')">완료 롤백</button>`;
-  if(s.status==='noshow')b+=`<button class="sc-btn sc-btn-gold" style="flex:1;" onclick="scAskConfirm('rollback')">노쇼 롤백</button>`;
+  if(isPtSpt&&s.status==='completed')b+=`<button class="sc-btn sc-btn-gold" style="flex:1;" onclick="scAskConfirm('rollback')">완료 롤백</button>`;
+  if(isPtSpt&&s.status==='noshow')b+=`<button class="sc-btn sc-btn-gold" style="flex:1;" onclick="scAskConfirm('rollback')">노쇼 롤백</button>`;
   acts.innerHTML=b;acts.style.display='flex';
 }
 

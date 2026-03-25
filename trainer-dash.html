@@ -879,7 +879,13 @@ async function saveSchedule(){
   btn.disabled=true;btn.textContent='저장 중...';
   const selType=document.getElementById('schedType').value||'PT';
   const selMember=(selType==='PT'||selType==='SPT')?document.getElementById('schedMember').value||null:null;
-  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,type:selType,notes:document.getElementById('schedNotes').value.trim()||null,color:_schedColor,member_id:selMember};
+  // PT 유형 + 회원 선택 시 active pt_product 자동 연결
+  let ptProductId=null;
+  if(selType==='PT'&&selMember){
+    const{data:prod}=await db.from('pt_products').select('id').eq('member_id',selMember).eq('status','active').maybeSingle();
+    ptProductId=prod?.id||null;
+  }
+  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,type:selType,notes:document.getElementById('schedNotes').value.trim()||null,color:_schedColor,member_id:selMember,pt_product_id:ptProductId};
   let error;
   if(_schedEditId){({error}=await db.from('schedules').update(payload).eq('id',_schedEditId));}
   else{({error}=await db.from('schedules').insert({...payload,status:'scheduled'}));}

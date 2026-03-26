@@ -109,6 +109,32 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 .memo-meta { font-size:12px; color:#666; margin-bottom:18px; }
 .memo-body { font-size:14px; color:#ccc; line-height:1.7; background:#0f0f0a; border-radius:10px; padding:14px; min-height:60px; }
 .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%); background:#2a2518; color:#c9a84c; border:1px solid #c9a84c44; border-radius:10px; padding:10px 18px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:opacity 0.3s; z-index:9999; white-space:nowrap; }
+/* 아코디언 */
+.acc-block { border:1px solid #2a2518; border-radius:12px; margin-bottom:8px; overflow:hidden; }
+.acc-header { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; cursor:pointer; transition:background 0.15s; user-select:none; }
+.acc-header:hover { background:#1e1c10; }
+.acc-header.open { background:#1a1908; }
+.acc-header-left { display:flex; align-items:center; gap:10px; }
+.acc-header-title { font-size:13px; font-weight:700; }
+.acc-header-count { font-size:11px; color:#666; }
+.acc-arrow { font-size:13px; color:#555; transition:transform 0.2s; }
+.acc-arrow.open { transform:rotate(90deg); color:#c9a84c; }
+.acc-body { display:none; border-top:1px solid #1e1c10; padding:10px 10px 6px; background:#0f0f0a; }
+.acc-body.open { display:block; }
+/* 트레이너 서브 아코디언 */
+.acc-sub-block { border:1px solid #242418; border-radius:10px; margin-bottom:6px; overflow:hidden; }
+.acc-sub-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; cursor:pointer; transition:background 0.15s; user-select:none; }
+.acc-sub-header:hover { background:#1a1908; }
+.acc-sub-header.open { background:#171710; }
+.acc-sub-title { font-size:12px; font-weight:700; color:#ccc; }
+.acc-sub-count { font-size:11px; color:#555; margin-left:6px; }
+.acc-sub-body { display:none; border-top:1px solid #1e1c10; padding:8px 8px 4px; background:#0a0a08; }
+.acc-sub-body.open { display:block; }
+/* 회원 행 (아코디언 내부) */
+.member-row { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-radius:9px; cursor:pointer; transition:background 0.15s; }
+.member-row:hover { background:#1e1c10; }
+.member-row-name { font-size:13px; font-weight:600; }
+.member-row-arrow { font-size:12px; color:#444; }
 .spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(0,0,0,0.2); border-top-color:#000; border-radius:50%; animation:spin 0.7s linear infinite; margin-right:6px; vertical-align:middle; }
 @keyframes spin { to{transform:rotate(360deg)} }
 /* ── PT 상품 카드 ── */
@@ -838,67 +864,103 @@ function showBranch(branch) {
   const wrap = document.getElementById('memberList');
   if (!branchMembers.length) { wrap.innerHTML = '<div class="empty">등록된 회원이 없어요</div>'; return; }
 
-  // 트레이너별로 그룹핑
-  const trainerOrder = [];
-  const trainerGroups = {};
-  branchMembers.forEach(m => {
-    const key = m.trainer_id || '__unassigned__';
-    if (!trainerGroups[key]) {
-      trainerOrder.push(key);
-      trainerGroups[key] = [];
-    }
-    trainerGroups[key].push(m);
-  });
-
-  // 트레이너 순서: 활성 트레이너 → 비활성 → 미배정
-  trainerOrder.sort((a, b) => {
-    if (a === '__unassigned__') return 1;
-    if (b === '__unassigned__') return -1;
-    const tA = _allTrainers.find(t => t.id === a);
-    const tB = _allTrainers.find(t => t.id === b);
-    if (tA?.is_active && !tB?.is_active) return -1;
-    if (!tA?.is_active && tB?.is_active) return 1;
-    return (tA?.name || '').localeCompare(tB?.name || '');
-  });
+  const STATUS_CONFIG = [
+    { key: 'active',       label: '유효 회원',    color: '#22c55e', dot: '🟢' },
+    { key: 'long_absent',  label: '장기미방문',    color: '#f59e0b', dot: '🟡' },
+    { key: 'expired',      label: '만료',          color: '#f87171', dot: '🔴' },
+  ];
 
   let html = '';
-  trainerOrder.forEach(key => {
-    const members = trainerGroups[key];
-    const trainer = _allTrainers.find(t => t.id === key);
-    const trainerName = trainer ? trainer.name : '미배정';
-    const activeCount = members.filter(m => m.member_status === 'active').length;
-    const labelColor = key === '__unassigned__' ? '#6b7280'
-      : !trainer?.is_active ? '#6b7280' : '#c9a84c';
-    const subInfo = activeCount > 0
-      ? `<span style="font-size:10px;color:#22c55e;margin-left:6px">유효 ${activeCount}명</span>`
-      : '';
-    html += `<div class="group-label" style="color:${labelColor};margin-top:18px">${trainerName} (${members.length}명)${subInfo}</div>`;
 
-    // 트레이너 내부: active → long_absent → expired 순
-    const sorted = [
-      ...members.filter(m => m.member_status === 'active'),
-      ...members.filter(m => m.member_status === 'long_absent'),
-      ...members.filter(m => m.member_status === 'expired' || !m.member_status),
-    ];
-    html += sorted.map(m => memberRow(m)).join('');
+  STATUS_CONFIG.forEach(sc => {
+    const statusMembers = branchMembers.filter(m =>
+      sc.key === 'expired'
+        ? (m.member_status === 'expired' || !m.member_status)
+        : m.member_status === sc.key
+    );
+    if (!statusMembers.length) return;
+
+    // 트레이너별 그룹핑
+    const trainerOrder = [];
+    const trainerMap = {};
+    statusMembers.forEach(m => {
+      const key = m.trainer_id || '__unassigned__';
+      if (!trainerMap[key]) { trainerMap[key] = []; trainerOrder.push(key); }
+      trainerMap[key].push(m);
+    });
+    trainerOrder.sort((a, b) => {
+      if (a === '__unassigned__') return 1;
+      if (b === '__unassigned__') return -1;
+      const tA = _allTrainers.find(t => t.id === a);
+      const tB = _allTrainers.find(t => t.id === b);
+      if (tA?.is_active && !tB?.is_active) return -1;
+      if (!tA?.is_active && tB?.is_active) return 1;
+      return (tA?.name || '').localeCompare(tB?.name || '');
+    });
+
+    // 트레이너 서브 아코디언 생성
+    let trainerAccs = '';
+    trainerOrder.forEach(tKey => {
+      const tMembers = trainerMap[tKey];
+      const trainer  = _allTrainers.find(t => t.id === tKey);
+      const tName    = trainer ? trainer.name : '미배정';
+      const accId    = `acc-${sc.key}-${tKey}`;
+      const memberRows = tMembers.map(m => memberRow(m)).join('');
+      trainerAccs += `
+        <div class="acc-sub-block">
+          <div class="acc-sub-header" onclick="toggleAcc('${accId}')">
+            <span>
+              <span class="acc-sub-title">${tName}</span>
+              <span class="acc-sub-count">${tMembers.length}명</span>
+            </span>
+            <span class="acc-arrow" id="${accId}-arrow">›</span>
+          </div>
+          <div class="acc-sub-body" id="${accId}">${memberRows}</div>
+        </div>`;
+    });
+
+    const statusId = `acc-status-${branch.replace(/\s/g,'_')}-${sc.key}`;
+    html += `
+      <div class="acc-block">
+        <div class="acc-header" onclick="toggleAcc('${statusId}')" id="${statusId}-header">
+          <div class="acc-header-left">
+            <span style="font-size:15px">${sc.dot}</span>
+            <span class="acc-header-title" style="color:${sc.color}">${sc.label}</span>
+            <span class="acc-header-count">${statusMembers.length}명</span>
+          </div>
+          <span class="acc-arrow" id="${statusId}-arrow">›</span>
+        </div>
+        <div class="acc-body" id="${statusId}">${trainerAccs}</div>
+      </div>`;
   });
 
   wrap.innerHTML = html || '<div class="empty">등록된 회원이 없어요</div>';
 }
 
+function toggleAcc(id) {
+  const body  = document.getElementById(id);
+  const arrow = document.getElementById(id + '-arrow');
+  const header = document.getElementById(id + '-header');
+  if (!body) return;
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  if (arrow)  arrow.classList.toggle('open', !isOpen);
+  if (header) header.classList.toggle('open', !isOpen);
+}
+
 function memberRow(m) {
   const statusBadge = m.member_status === 'long_absent'
-    ? ' <span style="font-size:10px;color:#f59e0b;background:#2a1f00;padding:1px 5px;border-radius:4px">장기미방문</span>'
+    ? '<span style="font-size:9px;color:#f59e0b;background:#2a1f00;padding:1px 5px;border-radius:4px;margin-left:5px">장기미방문</span>'
     : m.member_status === 'expired' || !m.member_status
-      ? ' <span style="font-size:10px;color:#f87171;background:#2a1010;padding:1px 5px;border-radius:4px">만료</span>'
+      ? '<span style="font-size:9px;color:#f87171;background:#2a1010;padding:1px 5px;border-radius:4px;margin-left:5px">만료</span>'
       : '';
-  const sub = m.phone ? m.phone : (m.notes ? m.notes.slice(0, 20) : '');
-  return `<div class="hier-row" onclick="showMemberDetail('${m.id}')">
-    <div class="hier-info">
-      <div class="hier-name">${m.name}${statusBadge}</div>
-      ${sub ? `<div class="hier-sub">${sub}</div>` : ''}
+  const sub = m.phone || (m.notes ? m.notes.slice(0, 24) : '');
+  return `<div class="member-row" onclick="showMemberDetail('${m.id}')">
+    <div>
+      <div class="member-row-name">${m.name}${statusBadge}</div>
+      ${sub ? `<div style="font-size:10px;color:#555;margin-top:2px">${sub}</div>` : ''}
     </div>
-    <div class="hier-arrow">›</div>
+    <div class="member-row-arrow">›</div>
   </div>`;
 }
 

@@ -761,7 +761,7 @@ let _allMembers  = [];
 async function loadMembers() {
   const [trRes, mbRes] = await Promise.all([
     db.from('trainers').select('id,name,gym_location,is_active,is_admin').order('name'),
-    db.from('members').select('id,name,gym_location,notes,is_active,trainer_id').order('name'),
+    db.from('members').select('id,name,gym_location,notes,is_active,member_status,trainer_id').order('name'),
   ]);
   if (trRes.error || mbRes.error) { showToast('불러오기 실패'); return; }
   _allTrainers = trRes.data || [];
@@ -837,19 +837,66 @@ function showBranch(branch) {
   ]);
   const wrap = document.getElementById('memberList');
   if (!branchMembers.length) { wrap.innerHTML = '<div class="empty">등록된 회원이 없어요</div>'; return; }
-  const active   = branchMembers.filter(m => m.is_active);
-  const inactive = branchMembers.filter(m => !m.is_active);
-  let html = active.map(m => memberRow(m)).join('');
-  if (inactive.length) html += `<div class="group-label" style="margin-top:14px">비활성 (${inactive.length})</div>` + inactive.map(m => memberRow(m)).join('');
-  wrap.innerHTML = html;
+
+  // 트레이너별로 그룹핑
+  const trainerOrder = [];
+  const trainerGroups = {};
+  branchMembers.forEach(m => {
+    const key = m.trainer_id || '__unassigned__';
+    if (!trainerGroups[key]) {
+      trainerOrder.push(key);
+      trainerGroups[key] = [];
+    }
+    trainerGroups[key].push(m);
+  });
+
+  // 트레이너 순서: 활성 트레이너 → 비활성 → 미배정
+  trainerOrder.sort((a, b) => {
+    if (a === '__unassigned__') return 1;
+    if (b === '__unassigned__') return -1;
+    const tA = _allTrainers.find(t => t.id === a);
+    const tB = _allTrainers.find(t => t.id === b);
+    if (tA?.is_active && !tB?.is_active) return -1;
+    if (!tA?.is_active && tB?.is_active) return 1;
+    return (tA?.name || '').localeCompare(tB?.name || '');
+  });
+
+  let html = '';
+  trainerOrder.forEach(key => {
+    const members = trainerGroups[key];
+    const trainer = _allTrainers.find(t => t.id === key);
+    const trainerName = trainer ? trainer.name : '미배정';
+    const activeCount = members.filter(m => m.member_status === 'active').length;
+    const labelColor = key === '__unassigned__' ? '#6b7280'
+      : !trainer?.is_active ? '#6b7280' : '#c9a84c';
+    const subInfo = activeCount > 0
+      ? `<span style="font-size:10px;color:#22c55e;margin-left:6px">유효 ${activeCount}명</span>`
+      : '';
+    html += `<div class="group-label" style="color:${labelColor};margin-top:18px">${trainerName} (${members.length}명)${subInfo}</div>`;
+
+    // 트레이너 내부: active → long_absent → expired 순
+    const sorted = [
+      ...members.filter(m => m.member_status === 'active'),
+      ...members.filter(m => m.member_status === 'long_absent'),
+      ...members.filter(m => m.member_status === 'expired' || !m.member_status),
+    ];
+    html += sorted.map(m => memberRow(m)).join('');
+  });
+
+  wrap.innerHTML = html || '<div class="empty">등록된 회원이 없어요</div>';
 }
 
 function memberRow(m) {
-  const trainer = _allTrainers.find(t => t.id === m.trainer_id);
+  const statusBadge = m.member_status === 'long_absent'
+    ? ' <span style="font-size:10px;color:#f59e0b;background:#2a1f00;padding:1px 5px;border-radius:4px">장기미방문</span>'
+    : m.member_status === 'expired' || !m.member_status
+      ? ' <span style="font-size:10px;color:#f87171;background:#2a1010;padding:1px 5px;border-radius:4px">만료</span>'
+      : '';
+  const sub = m.phone ? m.phone : (m.notes ? m.notes.slice(0, 20) : '');
   return `<div class="hier-row" onclick="showMemberDetail('${m.id}')">
     <div class="hier-info">
-      <div class="hier-name">${m.name}${!m.is_active ? ' <span style="font-size:10px;color:#f87171">비활성</span>' : ''}</div>
-      <div class="hier-sub">담당: ${trainer?.name || '미배정'}</div>
+      <div class="hier-name">${m.name}${statusBadge}</div>
+      ${sub ? `<div class="hier-sub">${sub}</div>` : ''}
     </div>
     <div class="hier-arrow">›</div>
   </div>`;

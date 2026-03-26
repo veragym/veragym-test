@@ -457,12 +457,6 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
       </select>
     </div>
     <div class="field">
-      <label>담당 트레이너 <span style="color:#f87171">*</span></label>
-      <select id="ptAssignedTrainer">
-        <option value="">-- 선택 --</option>
-      </select>
-    </div>
-    <div class="field">
       <label>메모 (선택)</label>
       <textarea id="ptNotes" rows="2" style="width:100%;background:#0a0a08;border:1.5px solid #2a2518;border-radius:10px;padding:12px 14px;font-size:14px;color:#fff;outline:none;font-family:inherit;resize:none"></textarea>
     </div>
@@ -601,7 +595,7 @@ async function init() {
   if (!me) return;
 
   document.getElementById('adminName').textContent =
-    me.is_super ? '최고 관리자' : `${me.name} · ${me.gym_location}`;
+    me.is_admin ? `관리자 · ${me.name}` : `${me.name} · ${me.gym_location}`;
 
   loadTrainers();
 }
@@ -635,7 +629,7 @@ async function loadTrainers() {
         <button class="btn-sm" onclick="toggleActive('${t.id}','${t.name}',${t.is_active})">
           ${t.is_active ? '비활성화' : '활성화'}
         </button>
-        ${!t.is_admin && me?.is_super ? `<button class="btn-sm btn-danger" onclick="deleteTrainer('${t.id}','${t.name}')">삭제</button>` : ''}
+        ${!t.is_admin && me?.is_admin ? `<button class="btn-sm btn-danger" onclick="deleteTrainer('${t.id}','${t.name}')">삭제</button>` : ''}
       </div>
     </div>`;
 
@@ -651,7 +645,7 @@ function openAddTrainer() {
   document.getElementById('tPw').value = '';
   document.getElementById('tRole').value = 'false';
   document.getElementById('addErr').style.display = 'none';
-  document.getElementById('roleField').style.display = me?.is_super ? '' : 'none';
+  document.getElementById('roleField').style.display = me?.is_admin ? '' : 'none';
   openModal('addModal');
 }
 
@@ -970,7 +964,6 @@ function openAddPtProduct() {
     .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   const opts = '<option value="">-- 선택 --</option>' + trainers.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
   document.getElementById('ptContractTrainer').innerHTML = opts;
-  document.getElementById('ptAssignedTrainer').innerHTML = opts;
   openModal('addPtModal');
 }
 
@@ -978,7 +971,6 @@ async function addPtProduct() {
   const date       = document.getElementById('ptDate').value;
   const sessions   = parseInt(document.getElementById('ptSessions').value);
   const contractTr = document.getElementById('ptContractTrainer').value;
-  const assignedTr = document.getElementById('ptAssignedTrainer').value;
   const notes      = document.getElementById('ptNotes').value.trim();
   const btn        = document.getElementById('btnAddPt');
   const errBox     = document.getElementById('ptErr');

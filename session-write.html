@@ -872,7 +872,7 @@ async function ensureLog() {
   const notes = document.getElementById('notesInput').value || null;
   const { data: newLog, error } = await db
     .from('workout_logs')
-    .insert({ trainer_id: trainer.id, member_id: memberId, session_date: date, notes })
+    .insert({ trainer_id: trainer.id, member_id: memberId, session_date: date, notes, ...(scheduleId ? { schedule_id: scheduleId } : {}) })
     .select('id').single();
   if (error) throw error;
   logId = newLog.id;

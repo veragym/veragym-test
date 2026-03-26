@@ -1114,12 +1114,19 @@ function renderSiActions(){
           <button onclick="closeSchedInfo();openSchedModal('${s.id}',null,null)" style="flex:1;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">수정</button>
         </div>`;
     }else{
+      // 업무/청소/홍보/식사: 완료 버튼 추가 (세션 차감 없이 상태만 변경)
       acts.innerHTML=`
+        <button id="siBtnComplete" onclick="siAction('complete')" style="width:100%;background:#22c55e22;border:1.5px solid #22c55e55;color:#4ade80;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">완료 처리</button>
         <div style="display:flex;gap:10px;">
           <button id="siBtnCancel" onclick="siAction('cancel')" style="flex:1;background:#ff4d4f22;border:1.5px solid #ff4d4f55;color:#ff4d4f;border-radius:12px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">예약 취소</button>
           <button onclick="closeSchedInfo();openSchedModal('${s.id}',null,null)" style="flex:1;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;">수정</button>
         </div>`;
     }
+  }else if(s.status==='completed'||s.status==='noshow'){
+    // 완료/노쇼: 롤백 버튼 제공
+    acts.innerHTML=`
+      <button id="siBtnRollback" onclick="siRollback()" style="width:100%;background:#6c63ff22;border:1.5px solid #6c63ff55;color:#a5b4fc;border-radius:12px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">수업 롤백 (예약 상태로 복원)</button>
+      <button onclick="closeSchedInfo()" style="width:100%;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">닫기</button>`;
   }else{
     acts.innerHTML=`<button onclick="closeSchedInfo()" style="width:100%;background:#1e1e3e;border:1.5px solid #3a3a5c;color:#aaa;border-radius:12px;padding:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">닫기</button>`;
   }
@@ -1147,6 +1154,7 @@ async function siAction(action){
       const targetId=_siTarget.id;
       const memberId=_siTarget.member_id;
       const schedDate=_siTarget.sched_date;
+      const schedType=_siTarget.type;
       const _mem=myMembersForSched.find(m=>m.id===memberId);
       const memberName=_mem?.name||'회원';
       const{data,error}=await db.rpc('process_session',{p_schedule_id:_siTarget.id,p_action:action==='complete'?'completed':'noshow'});
@@ -1154,7 +1162,8 @@ async function siAction(action){
       closeSchedInfo();
       showToast(action==='complete'?'수업 완료 처리되었습니다':'노쇼 처리되었습니다');
       await loadScheduleView();
-      if(action==='complete'){
+      // 수업일지 연결 모달: PT 완료 시에만 (SPT·기타는 개인 일지 없음)
+      if(action==='complete'&&schedType==='PT'&&memberId){
         await openLinkLogModal(targetId,memberId,schedDate,memberName);
       }
     }else if(action==='cancel'){
@@ -1167,6 +1176,34 @@ async function siAction(action){
   }catch(e){
     errEl.textContent=e.message;errEl.style.display='block';
     document.getElementById('siActions').querySelectorAll('button').forEach(b=>b.disabled=false);
+    renderSiActions();
+  }
+}
+
+// ── 수업 롤백 ─────────────────────────────────────────────────
+let _siRollbackPending=false;
+async function siRollback(){
+  if(!_siTarget)return;
+  const btn=document.getElementById('siBtnRollback');
+  const errEl=document.getElementById('siErr');
+  errEl.style.display='none';
+  if(!_siRollbackPending){
+    _siRollbackPending=true;
+    if(btn)btn.textContent='롤백 — 한 번 더 탭해서 확인';
+    setTimeout(()=>{if(_siRollbackPending){_siRollbackPending=false;renderSiActions();}},3000);
+    return;
+  }
+  _siRollbackPending=false;
+  if(btn)btn.disabled=true;
+  try{
+    const{data,error}=await db.rpc('rollback_session',{p_schedule_id:_siTarget.id});
+    if(error||!data?.ok)throw new Error(error?.message||data?.error||'롤백 실패');
+    closeSchedInfo();
+    showToast('수업이 예약 상태로 복원됐습니다');
+    await loadScheduleView();
+  }catch(e){
+    errEl.textContent=e.message;errEl.style.display='block';
+    if(btn)btn.disabled=false;
     renderSiActions();
   }
 }
@@ -1266,14 +1303,16 @@ if ('serviceWorker' in navigator) {
 // ── 유형 변경 시 회원 행 show/hide ──────────────────────────
 function onSchedTypeChange(){
   const t=document.getElementById('schedType').value;
-  document.getElementById('schedMemberRow').style.display=(t==='PT'||t==='SPT')?'':'none';
-  // 내용 칸: PT 제외 모든 유형에서 표시
+  // PT: 회원 드롭다운 표시 / SPT: 텍스트 입력 표시 / 기타: 둘 다 숨김
+  document.getElementById('schedMemberRow').style.display=(t==='PT')?'':'none';
+  document.getElementById('schedMemberTextRow').style.display=(t==='SPT')?'':'none';
+  // 내용 칸: PT·SPT 제외 유형에서 표시 (SPT는 schedMemberTextRow가 notes 역할)
   const notesRow=document.getElementById('schedNotesRow');
   const notesLabel=document.getElementById('schedNotesLabel');
   const notesTA=document.getElementById('schedNotes');
-  const notesMap={SPT:'수업 내용을 간단히 적어주세요',업무:'어떤 업무인지 입력해주세요',청소:'청소 범위/내용을 입력해주세요',홍보:'홍보 내용을 입력해주세요',식사:'메모를 입력해주세요'};
-  if(t==='PT'){notesRow.style.display='none';}
-  else{notesRow.style.display='';notesLabel.textContent=t==='SPT'?'수업 내용':'내용';notesTA.placeholder=notesMap[t]||'내용을 입력해주세요';}
+  const notesMap={업무:'어떤 업무인지 입력해주세요',청소:'청소 범위/내용을 입력해주세요',홍보:'홍보 내용을 입력해주세요',식사:'메모를 입력해주세요'};
+  if(t==='PT'||t==='SPT'){notesRow.style.display='none';}
+  else{notesRow.style.display='';notesLabel.textContent='내용';notesTA.placeholder=notesMap[t]||'내용을 입력해주세요';}
 }
 // ── 커스텀 타임픽커 (30분 단위) ──────────────────────────────
 function formatKorTime(t){
@@ -1333,6 +1372,7 @@ function openSchedModal(schedId,date,time){
       document.getElementById('schedEndDisplay').textContent=formatKorTime(et);
       document.getElementById('schedType').value=data.type||'PT';
       if(data.type==='SPT'){
+        // SPT: notes는 schedMemberText(회원/내용 텍스트 입력)에 세팅
         document.getElementById('schedMemberText').value=data.notes||'';
         document.getElementById('schedNotes').value='';
       }else{
@@ -1374,14 +1414,20 @@ async function saveSchedule(){
   if(!start){errEl.textContent='시작 시간을 입력해주세요.';errEl.style.display='block';return;}
   btn.disabled=true;btn.textContent='저장 중...';
   const selType=document.getElementById('schedType').value||'PT';
-  const selMember=(selType==='PT'||selType==='SPT')?document.getElementById('schedMember').value||null:null;
+  // PT만 드롭다운 회원 연결 / SPT·기타는 member_id 없음
+  const selMember=(selType==='PT')?document.getElementById('schedMember').value||null:null;
   // PT 유형 + 회원 선택 시 active pt_product 자동 연결
   let ptProductId=null;
   if(selType==='PT'&&selMember){
     const{data:prod}=await db.from('pt_products').select('id').eq('member_id',selMember).eq('status','active').maybeSingle();
     ptProductId=prod?.id||null;
   }
-  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,type:selType,notes:document.getElementById('schedNotes').value.trim()||null,color:TYPE_COLORS[selType]||'#6c63ff',member_id:selMember,pt_product_id:ptProductId};
+  // notes: SPT는 schedMemberText(회원/내용 입력칸)에서 읽음, 나머지는 schedNotes에서 읽음
+  const notesVal = selType==='SPT'
+    ? document.getElementById('schedMemberText').value.trim()||null
+    : selType==='PT' ? null
+    : document.getElementById('schedNotes').value.trim()||null;
+  const payload={trainer_id:me.id,sched_date:date,start_time:start,end_time:document.getElementById('schedEnd').value||null,type:selType,notes:notesVal,color:TYPE_COLORS[selType]||'#6c63ff',member_id:selMember,pt_product_id:ptProductId};
   let error;
   if(_schedEditId){({error}=await db.from('schedules').update(payload).eq('id',_schedEditId));}
   else{({error}=await db.from('schedules').insert({...payload,status:'scheduled'}));}
@@ -1455,9 +1501,10 @@ async function openLinkLogModal(scheduleId,memberId,schedDate,memberName){
 }
 
 async function selectLinkLog(logId){
-  await db.from('workout_logs')
+  const{error}=await db.from('workout_logs')
     .update({schedule_id:_linkLogScheduleId,session_date:_linkLogDate})
     .eq('id',logId);
+  if(error){showToast('연결 실패: '+error.message);return;}
   document.getElementById('linkLogModal').style.display='none';
   document.body.style.overflow='';
   showToast('수업일지가 연결됐어요 ✓');

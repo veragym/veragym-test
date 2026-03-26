@@ -455,7 +455,23 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
       <div class="modal-title" id="detailMemberName" style="margin-bottom:0"></div>
       <button class="btn-add" style="font-size:12px;padding:6px 12px" onclick="openAddPtProduct()">+ PT 상품</button>
     </div>
-    <div id="detailMemberMeta" style="font-size:12px;color:#666;margin-bottom:18px"></div>
+    <div id="detailMemberMeta" style="font-size:12px;color:#666;margin-bottom:14px"></div>
+
+    <!-- 회원 상태 수동 변경 -->
+    <div style="background:#0f0f0a;border:1px solid #2a2518;border-radius:10px;padding:12px 14px;margin-bottom:16px">
+      <div style="font-size:11px;color:#888;font-weight:600;letter-spacing:1.2px;margin-bottom:10px">회원 상태</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="statusOverrideSelect" style="flex:1;background:#0a0a08;border:1.5px solid #2a2518;border-radius:8px;padding:8px 10px;font-size:13px;color:#fff;outline:none;font-family:inherit">
+          <option value="">자동 계산</option>
+          <option value="active">🟢 유효</option>
+          <option value="long_absent">🟡 장기미방문</option>
+          <option value="expired">🔴 만료</option>
+        </select>
+        <button id="statusOverrideBtn" onclick="adminSetStatus()" style="background:linear-gradient(135deg,#c9a84c,#a8893a);border:none;border-radius:8px;padding:9px 14px;font-size:12px;font-weight:700;color:#000;cursor:pointer;white-space:nowrap">변경</button>
+      </div>
+      <div id="statusOverrideNote" style="font-size:10px;color:#666;margin-top:6px"></div>
+    </div>
+
     <div style="font-size:11px;color:#888;letter-spacing:1.2px;margin-bottom:10px;font-weight:600">PT 상품 목록</div>
     <div id="ptProductList"></div>
     <button class="btn-cancel" style="margin-top:16px;width:100%" onclick="closeModal('memberDetailModal')">닫기</button>
@@ -787,7 +803,7 @@ let _allMembers  = [];
 async function loadMembers() {
   const [trRes, mbRes] = await Promise.all([
     db.from('trainers').select('id,name,gym_location,is_active,is_admin').order('name'),
-    db.from('members').select('id,name,gym_location,notes,is_active,member_status,trainer_id').order('name'),
+    db.from('members').select('id,name,gym_location,notes,is_active,member_status,status_override,trainer_id,phone').order('name'),
   ]);
   if (trRes.error || mbRes.error) { showToast('불러오기 실패'); return; }
   _allTrainers = trRes.data || [];
@@ -971,12 +987,72 @@ async function showMemberDetail(memberId) {
   if (!m) return;
   _currentMemberId = memberId;
   const trainer = _allTrainers.find(t => t.id === m.trainer_id);
+
   document.getElementById('detailMemberName').textContent = m.name;
   document.getElementById('detailMemberMeta').textContent =
     `${m.gym_location || ''} · 담당: ${trainer?.name || '미배정'}`;
+
+  // 상태 override 셀렉트 초기화
+  const sel = document.getElementById('statusOverrideSelect');
+  sel.value = m.status_override || '';
+  const note = document.getElementById('statusOverrideNote');
+  if (m.status_override) {
+    note.textContent = '⚠️ 수동 설정 중 — 자동 계산 일시 중지';
+    note.style.color = '#f59e0b';
+  } else {
+    const statusLabel = {active:'🟢 유효', long_absent:'🟡 장기미방문', expired:'🔴 만료'}[m.member_status] || m.member_status;
+    note.textContent = `현재: ${statusLabel} (자동)`;
+    note.style.color = '#555';
+  }
+
   document.getElementById('ptProductList').innerHTML = '<div class="loading" style="padding:20px;font-size:13px">불러오는 중...</div>';
   openModal('memberDetailModal');
   await loadPtProducts(memberId);
+}
+
+async function adminSetStatus() {
+  const memberId = _currentMemberId;
+  if (!memberId) return;
+  const sel   = document.getElementById('statusOverrideSelect');
+  const value = sel.value || null;  // '' → null (자동복귀)
+  const btn   = document.getElementById('statusOverrideBtn');
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+
+  const { data, error } = await db.rpc('admin_set_member_status', {
+    p_member_id: memberId,
+    p_status:    value
+  });
+
+  btn.disabled = false;
+  btn.textContent = '변경';
+
+  if (error || !data?.ok) {
+    showToast('변경 실패: ' + (data?.error || error?.message));
+    return;
+  }
+
+  // 로컬 캐시 업데이트
+  const m = _allMembers.find(x => x.id === memberId);
+  if (m) {
+    m.status_override = value;
+    m.member_status   = data.member_status || value || m.member_status;
+  }
+
+  const note = document.getElementById('statusOverrideNote');
+  if (value) {
+    note.textContent = '⚠️ 수동 설정 중 — 자동 계산 일시 중지';
+    note.style.color = '#f59e0b';
+    showToast('상태가 수동으로 변경됐어요');
+  } else {
+    const statusLabel = {active:'🟢 유효', long_absent:'🟡 장기미방문', expired:'🔴 만료'}[m?.member_status] || '';
+    note.textContent = `현재: ${statusLabel} (자동)`;
+    note.style.color = '#555';
+    showToast('자동 계산으로 복귀했어요');
+  }
+
+  // 목록도 새로고침
+  await loadMembers();
 }
 
 async function loadPtProducts(memberId) {

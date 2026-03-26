@@ -455,8 +455,6 @@ init_db();
 let trainer         = null;
 let logId           = null;
 let memberId        = null;
-let scheduleId      = null; // 완료 후 연결할 일정 ID
-let scheduleDate    = null; // 완료 일정 날짜 (date 덮어쓰기용)
 let exercises       = [];   // [{rowId,refId,name,part,tool,sets,comment,photos:{start,end}}]
 let myLibrary       = [];
 let freqMap         = {};
@@ -471,10 +469,8 @@ async function init() {
   if (!trainer) return;
 
   const p = new URLSearchParams(location.search);
-  logId        = p.get('log');
-  memberId     = p.get('member');
-  scheduleId   = p.get('schedule') || null;  // 완료 직후 연결용
-  scheduleDate = p.get('date') || null;       // 날짜 덮어쓰기용
+  logId    = p.get('log');
+  memberId = p.get('member');
 
   if (!logId && !memberId) {
     showToast('잘못된 접근입니다');
@@ -562,8 +558,7 @@ async function initNewLog() {
     sessionStorage.removeItem('vg_session_draft');
   }
 
-  // 완료 처리 후 "지금 작성"으로 넘어온 경우 → 수업 날짜 자동 세팅
-  document.getElementById('metaDate').value = scheduleDate || today();
+  document.getElementById('metaDate').value = today();
   exercises = [];
   renderExercises();
 }
@@ -714,16 +709,7 @@ function updSet(idx, si, field, val) {
 }
 function updComment(idx, val) { exercises[idx].comment = val; }
 function removeEx(idx) {
-  const ex = exercises[idx];
-  if (!confirm(`'${ex.name}' 삭제할까요?`)) return;
-
-  // 사진이 있으면 Storage에서도 함께 삭제 (고아 파일 방지)
-  const pathsToDelete = [ex.photos?.start, ex.photos?.end].filter(Boolean);
-  if (pathsToDelete.length > 0) {
-    db.storage.from('session-photos').remove(pathsToDelete)
-      .catch(e => console.warn('사진 파일 삭제 실패:', e));
-  }
-
+  if (!confirm(`'${exercises[idx].name}' 삭제할까요?`)) return;
   exercises.splice(idx, 1);
   renderExercises();
 }
@@ -739,17 +725,15 @@ async function saveSession() {
 
   try {
     if (logId) {
-      // 기존 일지 수정 — schedule 파라미터 있으면 날짜+schedule_id 함께 업데이트
-      const updatePayload = { session_date: date, notes };
-      if (scheduleId) updatePayload.schedule_id = scheduleId;
-      await db.from('workout_logs').update(updatePayload).eq('id', logId);
+      await db.from('workout_logs')
+        .update({ session_date: date, notes })
+        .eq('id', logId);
       await db.from('workout_log_exercises').delete().eq('log_id', logId);
     } else {
-      // 새 일지 작성 — schedule 파라미터 있으면 바로 연결
-      const insertPayload = { trainer_id: trainer.id, member_id: memberId, session_date: date, notes };
-      if (scheduleId) insertPayload.schedule_id = scheduleId;
       const { data: newLog, error: le } = await db
-        .from('workout_logs').insert(insertPayload).select('id').single();
+        .from('workout_logs')
+        .insert({ trainer_id: trainer.id, member_id: memberId, session_date: date, notes })
+        .select('id').single();
       if (le) throw le;
       logId = newLog.id;
       history.replaceState(null, '', `?log=${logId}`);

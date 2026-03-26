@@ -469,8 +469,10 @@ async function init() {
   if (!trainer) return;
 
   const p = new URLSearchParams(location.search);
-  logId    = p.get('log');
-  memberId = p.get('member');
+  logId        = p.get('log');
+  memberId     = p.get('member');
+  scheduleId   = p.get('schedule') || null;
+  scheduleDate = p.get('date') || null;
 
   if (!logId && !memberId) {
     showToast('잘못된 접근입니다');
@@ -558,7 +560,7 @@ async function initNewLog() {
     sessionStorage.removeItem('vg_session_draft');
   }
 
-  document.getElementById('metaDate').value = today();
+  document.getElementById('metaDate').value = scheduleDate || today();
   exercises = [];
   renderExercises();
 }
@@ -725,14 +727,16 @@ async function saveSession() {
 
   try {
     if (logId) {
+      const updatePayload = { session_date: date, notes };
+      if (scheduleId) updatePayload.schedule_id = scheduleId;
       await db.from('workout_logs')
-        .update({ session_date: date, notes })
+        .update(updatePayload)
         .eq('id', logId);
       await db.from('workout_log_exercises').delete().eq('log_id', logId);
     } else {
       const { data: newLog, error: le } = await db
         .from('workout_logs')
-        .insert({ trainer_id: trainer.id, member_id: memberId, session_date: date, notes })
+        .insert({ trainer_id: trainer.id, member_id: memberId, session_date: date, notes, ...(scheduleId ? { schedule_id: scheduleId } : {}) })
         .select('id').single();
       if (le) throw le;
       logId = newLog.id;

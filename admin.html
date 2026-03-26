@@ -753,10 +753,10 @@ async function toggleActive(id, name, isActive) {
 }
 
 async function deleteTrainer(id, name) {
-  if (!confirm(`"${name}" 트레이너를 삭제할까요?\n되돌릴 수 없습니다.`)) return;
-  const { error } = await db.from('trainers').delete().eq('id', id);
-  if (error) { showToast('삭제 실패: ' + error.message); return; }
-  showToast(`${name} 삭제 완료`);
+  if (!confirm(`"${name}" 트레이너를 비활성화할까요?\n앱에서 숨겨지지만 계약 기록은 유지됩니다.`)) return;
+  const { error } = await db.from('trainers').update({ is_active: false }).eq('id', id);
+  if (error) { showToast('비활성화 실패: ' + error.message); return; }
+  showToast(`${name} 비활성화 완료`);
   loadTrainers();
 }
 
@@ -879,7 +879,7 @@ async function showMemberDetail(memberId) {
 async function loadPtProducts(memberId) {
   const { data, error } = await db
     .from('pt_products')
-    .select('id,contract_date,total_sessions,remaining_sessions,contract_trainer_id,assigned_trainer_id,notes,is_active')
+    .select('id,contract_date,total_sessions,remaining_sessions,contract_trainer_id,notes,is_active')
     .eq('member_id', memberId)
     .order('created_at', { ascending: false });
   const wrap = document.getElementById('ptProductList');
@@ -887,10 +887,10 @@ async function loadPtProducts(memberId) {
   if (!data || !data.length) { wrap.innerHTML = '<div style="text-align:center;padding:20px;color:#444;font-size:13px">등록된 PT 상품이 없어요</div>'; return; }
   wrap.innerHTML = data.map(p => {
     const ct = _allTrainers.find(t => t.id === p.contract_trainer_id);
-    const at = _allTrainers.find(t => t.id === p.assigned_trainer_id);
+    const curMember = _allMembers.find(m => m.id === _currentMemberId);
+    const at = _allTrainers.find(t => t.id === curMember?.trainer_id);
     const active = p.is_active && p.remaining_sessions > 0;
     const cId = p.contract_trainer_id || '';
-    const aId = p.assigned_trainer_id || '';
     return `<div class="pt-card">
       <div class="pt-card-header">
         <div>
@@ -901,12 +901,12 @@ async function loadPtProducts(memberId) {
       </div>
       <div class="pt-meta">
         계약일 ${p.contract_date}<br>
-        계약 ${ct?.name || '미지정'} · 담당 <span style="color:#c9a84c">${at?.name || '미지정'}</span>
+        계약 ${ct?.name || '미지정'} · 담당 <span style="color:#c9a84c">${at?.name || '미배정'}</span>
         ${p.notes ? `<br>${p.notes}` : ''}
       </div>
       <div style="margin-top:8px">
         <button class="btn-sm" style="font-size:11px"
-          onclick="openChangeTrainer('${p.id}','${cId}','${aId}')">담당 트레이너 변경</button>
+          onclick="openChangeTrainer('${p.id}','${cId}')">담당 트레이너 변경</button>
       </div>
     </div>`;
   }).join('');
@@ -915,36 +915,31 @@ async function loadPtProducts(memberId) {
 // ── 담당트레이너 변경 ─────────────────────────────────────────
 let _ctProductId = null;
 
-function openChangeTrainer(productId, contractTrainerId, assignedTrainerId) {
+function openChangeTrainer(productId, contractTrainerId) {
   _ctProductId = productId;
   const cTr = _allTrainers.find(t => t.id === contractTrainerId);
   document.getElementById('ctContractName').textContent = cTr?.name || '미지정';
+  const currentTrainerId = _allMembers.find(m => m.id === _currentMemberId)?.trainer_id || '';
   const sel = document.getElementById('ctTrainerSel');
   sel.innerHTML = '<option value="">미배정</option>' +
     _allTrainers.filter(t => !t.is_admin && t.is_active)
       .sort((a,b) => a.name.localeCompare(b.name,'ko'))
-      .map(t => `<option value="${t.id}"${t.id === assignedTrainerId ? ' selected' : ''}>${t.name}</option>`)
+      .map(t => `<option value="${t.id}"${t.id === currentTrainerId ? ' selected' : ''}>${t.name}</option>`)
       .join('');
   document.getElementById('ctErr').style.display = 'none';
-  document.getElementById('ctSyncMember').checked = true;
   openModal('changeTrainerModal');
 }
 
 async function saveChangeTrainer() {
   const newTrId    = document.getElementById('ctTrainerSel').value || null;
-  const syncMember = document.getElementById('ctSyncMember').checked;
   const btn = document.getElementById('btnCtSave');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>저장 중...';
   try {
-    // pt_products.assigned_trainer_id 업데이트
-    const { error: e1 } = await db.from('pt_products')
-      .update({ assigned_trainer_id: newTrId }).eq('id', _ctProductId);
-    if (e1) throw e1;
-    // members.trainer_id 동기화 (체크 시)
-    if (syncMember && _currentMemberId) {
-      const { error: e2 } = await db.from('members')
+    // members.trainer_id만 업데이트 (담당=배정 통합)
+    if (_currentMemberId) {
+      const { error: e1 } = await db.from('members')
         .update({ trainer_id: newTrId }).eq('id', _currentMemberId);
-      if (e2) throw e2;
+      if (e1) throw e1;
     }
     closeModal('changeTrainerModal');
     showToast('담당 트레이너 변경 완료!');
@@ -992,8 +987,6 @@ async function addPtProduct() {
   if (!date)                   { errBox.textContent = '계약일을 입력해주세요';        errBox.style.display = 'block'; return; }
   if (!sessions || sessions < 1){ errBox.textContent = '횟수를 입력해주세요';           errBox.style.display = 'block'; return; }
   if (!contractTr)             { errBox.textContent = '계약 트레이너를 선택해주세요'; errBox.style.display = 'block'; return; }
-  if (!assignedTr)             { errBox.textContent = '담당 트레이너를 선택해주세요'; errBox.style.display = 'block'; return; }
-
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>추가 중...';
   const { error } = await db.from('pt_products').insert({
     member_id: _currentMemberId,
@@ -1001,7 +994,6 @@ async function addPtProduct() {
     total_sessions: sessions,
     remaining_sessions: sessions,
     contract_trainer_id: contractTr,
-    assigned_trainer_id: assignedTr,
     notes: notes || null,
     is_active: true,
   });
@@ -1112,7 +1104,6 @@ async function addMember() {
         total_sessions: sessions,
         remaining_sessions: sessions,
         contract_trainer_id: contractTrId,
-        assigned_trainer_id: trainerId,
         is_active: true,
       });
       if (e2) throw e2;

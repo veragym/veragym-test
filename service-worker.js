@@ -1,20 +1,20 @@
 // VERA GYM App - Service Worker
 const CACHE_NAME = 'veragym-v8';
 const STATIC = [
-  '/veragym-app/',
-  '/veragym-app/index.html',
-  '/veragym-app/admin-login.html',
-  '/veragym-app/admin.html',
-  '/veragym-app/trainer-login.html',
-  '/veragym-app/trainer-dash.html',
-  '/veragym-app/session-write.html',
-  '/veragym-app/exercise-library.html',
-  '/veragym-app/member-view.html',
-  '/veragym-app/config.js',
-  '/veragym-app/manifest.json',
-  '/veragym-app/manifest-member.json',
-  '/veragym-app/icons/icon-192.png',
-  '/veragym-app/icons/icon-512.png',
+  '/veragym-test/',
+  '/veragym-test/index.html',
+  '/veragym-test/admin-login.html',
+  '/veragym-test/admin.html',
+  '/veragym-test/trainer-login.html',
+  '/veragym-test/trainer-dash.html',
+  '/veragym-test/session-write.html',
+  '/veragym-test/exercise-library.html',
+  '/veragym-test/member-view.html',
+  '/veragym-test/config.js',
+  '/veragym-test/manifest.json',
+  '/veragym-test/manifest-member.json',
+  '/veragym-test/icons/icon-192.png',
+  '/veragym-test/icons/icon-512.png',
 ];
 
 self.addEventListener('install', e => {
@@ -42,8 +42,8 @@ self.addEventListener('fetch', e => {
 
   // HTML + JS: 네트워크 우선 → 항상 최신 버전 보장, 오프라인 시 캐시 폴백
   // (매번 캐시 버전을 올리지 않아도 코드 변경이 즉시 반영됨)
-  const isHtmlOrJs = url.includes('/veragym-app/') &&
-    (url.endsWith('.html') || url.endsWith('.js') || url.endsWith('/veragym-app/'));
+  const isHtmlOrJs = url.includes('/veragym-test/') &&
+    (url.endsWith('.html') || url.endsWith('.js') || url.endsWith('/veragym-test/'));
 
   if (isHtmlOrJs) {
     e.respondWith(

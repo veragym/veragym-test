@@ -1147,7 +1147,8 @@ async function siAction(action){
       const targetId=_siTarget.id;
       const memberId=_siTarget.member_id;
       const schedDate=_siTarget.sched_date;
-      const memberName=mem?.name||'회원';
+      const _mem=myMembersForSched.find(m=>m.id===memberId);
+      const memberName=_mem?.name||'회원';
       const{data,error}=await db.rpc('process_session',{p_schedule_id:_siTarget.id,p_action:action==='complete'?'completed':'noshow'});
       if(error||!data?.ok)throw new Error(error?.message||data?.error||'처리 실패');
       closeSchedInfo();

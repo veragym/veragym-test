@@ -180,6 +180,27 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 #tab-schedule { padding:0; }
 /* 필터 + 날짜이동 */
 .sc-ctrl { background:#111108; border-bottom:1px solid #2a2518; padding:10px 14px; display:flex; align-items:center; gap:10px; position:sticky; top:101px; z-index:97; }
+/* 날짜 버튼 */
+.sc-date-pill { flex:1; padding:8px 2px; text-align:center; cursor:pointer; border-right:1px solid #2a2518; display:flex; flex-direction:column; align-items:center; gap:2px; transition:background .12s; }
+.sc-date-pill:last-child { border-right:none; }
+.sc-date-pill .pill-num { font-size:17px; font-weight:700; color:#a09080; line-height:1; }
+.sc-date-pill .pill-day { font-size:10px; color:#4a3f2a; }
+.sc-date-pill.today .pill-num { color:#fff; }
+.sc-date-pill.active { background:#1e1a10; }
+.sc-date-pill.active .pill-num { color:#c9a84c; }
+.sc-date-pill.active .pill-day { color:#a07830; }
+/* 트레이너 컬럼 데이뷰 */
+.sc-dv-header { padding:10px 14px; font-size:12px; color:#6a5830; border-bottom:1px solid #1a1a10; background:#0f0f08; }
+.sc-dv-cols { display:flex; overflow-x:auto; -webkit-overflow-scrolling:touch; min-height:200px; }
+.sc-trainer-col { flex:0 0 155px; border-right:1px solid #1a1a10; }
+.sc-trainer-col:last-child { border-right:none; }
+.sc-trainer-col-hdr { background:#161610; padding:10px 8px; text-align:center; font-size:12px; font-weight:700; color:#c9a84c; border-bottom:1px solid #2a2518; position:sticky; top:0; }
+.sc-trainer-sess { padding:9px 10px; border-bottom:1px solid #111108; cursor:pointer; }
+.sc-trainer-sess:active { background:#1a1a14; }
+.sc-trainer-sess .sess-time { font-size:10px; color:#c9a84c; font-weight:600; }
+.sc-trainer-sess .sess-name { font-size:13px; font-weight:700; color:#e8e0cc; margin-top:3px; }
+.sc-trainer-sess .sess-sub { font-size:10px; color:#555; margin-top:2px; }
+.sc-trainer-empty { padding:20px 8px; text-align:center; color:#333; font-size:11px; }
 .sc-trainer-sel { background:#161610; border:1.5px solid #2a2518; border-radius:10px; padding:8px 12px; font-size:13px; color:#ccc; outline:none; font-family:inherit; cursor:pointer; flex:1; min-width:130px; -webkit-appearance:none; }
 .sc-trainer-sel:focus { border-color:#c9a84c66; }
 .sc-trainer-sel option { background:#161610; }
@@ -326,31 +347,21 @@ body { font-family:-apple-system,'Pretendard','Apple SD Gothic Neo',sans-serif; 
 </div>
 
 <div id="tab-schedule" class="tab-content">
-  <!-- 필터 + 날짜이동 (한 줄로 통합) -->
+  <!-- 지점 선택 + 주간 이동 -->
   <div class="sc-ctrl">
     <select class="sc-trainer-sel" id="scBranchSel" onchange="scOnBranchChange()" style="max-width:90px">
       <option value="">전체 지점</option>
     </select>
-    <select class="sc-trainer-sel" id="scTrainerSel" onchange="scOnFilter()">
-      <option value="">전체 트레이너</option>
-    </select>
     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto;">
-      <button class="sc-nav-arrow" onclick="scMoveDays(-4)">&#8249;</button>
+      <button class="sc-nav-arrow" onclick="scMoveDays(-7)">&#8249;</button>
       <span id="scRange" class="sc-date-range" style="font-size:12px;white-space:nowrap;"></span>
-      <button class="sc-nav-arrow" onclick="scMoveDays(4)">&#8250;</button>
+      <button class="sc-nav-arrow" onclick="scMoveDays(7)">&#8250;</button>
     </div>
   </div>
-  <!-- 캘린더 -->
-  <div id="scCalView">
-    <div id="scDateRow" class="sc-date-row"><div class="sc-gutter"></div></div>
-    <div class="sc-grid-scroll" id="scGridScroll">
-      <div class="sc-grid" id="scGrid"></div>
-    </div>
-  </div>
-  <!-- 목록 -->
-  <div id="scListView" style="display:none;">
-    <div class="sc-list" id="scListBody"></div>
-  </div>
+  <!-- 날짜 버튼 행 (7일) -->
+  <div id="scDatePills" style="display:flex;background:#111108;border-bottom:2px solid #2a2518;position:sticky;top:145px;z-index:95;"></div>
+  <!-- 트레이너 컬럼 데이뷰 -->
+  <div id="scDayView" style="overflow-y:auto;height:calc(100dvh - 57px - 44px - 44px - 52px);background:#0d0d08;"></div>
 </div>
 
 <div id="toast" class="toast"></div>
@@ -1521,7 +1532,7 @@ const SC_SC = {scheduled:'sc-st-scheduled',completed:'sc-st-completed',noshow:'s
 const SC_SLOTS=[];for(let _h=6;_h<=23;_h++){SC_SLOTS.push(String(_h).padStart(2,'0')+':00');if(_h<23)SC_SLOTS.push(String(_h).padStart(2,'0')+':30');}
 const SC_DAY=['일','월','화','수','목','금','토'];
 
-let scData=[],scStart=null,scView='cal',scTrainerId='',scTarget=null,scPendingAction=null,scTrainersLoaded=false,_scAllTrainers=[];
+let scData=[],scStart=null,scSelectedDate='',scTarget=null,scPendingAction=null,scTrainersLoaded=false,_scAllTrainers=[];
 
 function scP2(n){return String(n).padStart(2,'0');}
 function scDayStart(d){const r=new Date(d);r.setHours(0,0,0,0);return r;}
@@ -1540,58 +1551,105 @@ async function loadScheduleTab(){
     const branchSel=document.getElementById('scBranchSel');
     const branches=[...new Set(_scAllTrainers.map(t=>t.gym_location).filter(Boolean))].sort();
     branches.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;branchSel.appendChild(o);});
-    // 트레이너 드롭다운 초기화 (전체)
-    scPopulateTrainers('');
     scTrainersLoaded=true;
   }
   await scRefresh();
 }
 
-function scPopulateTrainers(branch){
-  const sel=document.getElementById('scTrainerSel');
-  sel.innerHTML='<option value="">전체 트레이너</option>';
-  const filtered=branch?_scAllTrainers.filter(t=>t.gym_location===branch):_scAllTrainers;
-  filtered.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.name;sel.appendChild(o);});
-}
-
-function scOnBranchChange(){
-  const branch=document.getElementById('scBranchSel').value;
-  scPopulateTrainers(branch);
-  scTrainerId='';
-  scRefresh();
-}
-
-function scOnFilter(){scTrainerId=document.getElementById('scTrainerSel').value;scRefresh();}
+function scOnBranchChange(){scRefresh();}
 function scMoveDays(n){scStart=scAddDays(scStart,n);scRefresh();}
-function scSwitchView(v){
-  scView=v;
-  document.getElementById('scCalView').style.display=v==='cal'?'':'none';
-  document.getElementById('scListView').style.display=v==='list'?'':'none';
-  document.getElementById('scVbCal').classList.toggle('active',v==='cal');
-  document.getElementById('scVbList').classList.toggle('active',v==='list');
-}
 
 async function scRefresh(){
-  const from=scYMD(scStart),to=scYMD(scAddDays(scStart,3));
-  document.getElementById('scRange').textContent=`${scFmtShort(scStart)} ~ ${scFmtShort(scAddDays(scStart,3))}`;
+  if(!scStart)scStart=scDayStart(new Date());
+  const from=scYMD(scStart),to=scYMD(scAddDays(scStart,6));
+  // 선택 날짜가 범위 밖이면 오늘 or 범위 첫날로 초기화
+  const todayISO=scYMD(new Date());
+  if(!scSelectedDate||scSelectedDate<from||scSelectedDate>to){
+    scSelectedDate=(todayISO>=from&&todayISO<=to)?todayISO:from;
+  }
   let q=db.from('schedules')
     .select('id,pt_product_id,trainer_id,member_id,sched_date,start_time,end_time,type,status,notes,members(name),trainers(name),pt_products(remaining_sessions,total_sessions)')
     .gte('sched_date',from).lte('sched_date',to)
     .order('sched_date').order('start_time');
-  if(scTrainerId){
-    q=q.eq('trainer_id',scTrainerId);
-  } else {
-    // 지점만 선택된 경우: 해당 지점 트레이너 ID 목록으로 필터
-    const branch=document.getElementById('scBranchSel')?.value||'';
-    if(branch){
-      const ids=_scAllTrainers.filter(t=>t.gym_location===branch).map(t=>t.id);
-      if(ids.length)q=q.in('trainer_id',ids);
-    }
+  const branch=document.getElementById('scBranchSel')?.value||'';
+  if(branch){
+    const ids=_scAllTrainers.filter(t=>t.gym_location===branch).map(t=>t.id);
+    if(ids.length)q=q.in('trainer_id',ids);
   }
   const{data,error}=await q;
   if(error){showToast('일정 불러오기 실패');return;}
   scData=data||[];
-  if(scView==='cal')scRenderCal();else scRenderList();
+  scRenderDatePills();
+  scRenderDayView();
+}
+
+function scRenderDatePills(){
+  const todayISO=scYMD(new Date());
+  let html='';
+  for(let i=0;i<7;i++){
+    const d=scAddDays(scStart,i);
+    const ymd=scYMD(d);
+    const isToday=ymd===todayISO;
+    const isActive=ymd===scSelectedDate;
+    html+=`<div class="sc-date-pill${isToday?' today':''}${isActive?' active':''}" onclick="scSelectDate('${ymd}')">
+      <span class="pill-num">${d.getDate()}</span>
+      <span class="pill-day">${SC_DAY[d.getDay()]}</span>
+    </div>`;
+  }
+  const pills=document.getElementById('scDatePills');
+  if(pills)pills.innerHTML=html;
+  const from=scStart,to=scAddDays(scStart,6);
+  document.getElementById('scRange').textContent=`${scFmtShort(from)} ~ ${scFmtShort(to)}`;
+}
+
+function scSelectDate(dateStr){
+  scSelectedDate=dateStr;
+  scRenderDatePills();
+  scRenderDayView();
+}
+
+function scRenderDayView(){
+  const dv=document.getElementById('scDayView');
+  if(!scSelectedDate){dv.innerHTML='<div style="padding:24px;text-align:center;color:#444;font-size:13px;">날짜를 선택해 주세요</div>';return;}
+  const branch=document.getElementById('scBranchSel')?.value||'';
+  const trainers=branch?_scAllTrainers.filter(t=>t.gym_location===branch):_scAllTrainers;
+  if(!trainers.length){dv.innerHTML='<div style="padding:24px;text-align:center;color:#444;font-size:13px;">트레이너 없음</div>';return;}
+  const dayData=scData.filter(s=>s.sched_date===scSelectedDate&&s.status!=='cancelled');
+  const[yr,mo,da]=scSelectedDate.split('-').map(Number);
+  const dow=new Date(yr,mo-1,da).getDay();
+  let html=`<div class="sc-dv-header">${mo}/${da}(${SC_DAY[dow]}) · ${branch||'전체 지점'} · 트레이너 ${trainers.length}명 · 수업 ${dayData.length}건</div>`;
+  html+='<div class="sc-dv-cols">';
+  trainers.forEach(trainer=>{
+    const sessions=dayData.filter(s=>s.trainer_id===trainer.id)
+      .sort((a,b)=>a.start_time.localeCompare(b.start_time));
+    html+=`<div class="sc-trainer-col">
+      <div class="sc-trainer-col-hdr">${trainer.name}</div>`;
+    if(!sessions.length){
+      html+='<div class="sc-trainer-empty">예약 없음</div>';
+    }else{
+      sessions.forEach(s=>{
+        const tStr=s.start_time?s.start_time.slice(0,5):'--:--';
+        const dur=scDurMin(s.start_time,s.end_time);
+        const sType=s.type||'PT';
+        let stxt='';
+        if((sType==='PT'||sType==='SPT')&&s.pt_products){
+          const u=(s.pt_products.total_sessions||0)-(s.pt_products.remaining_sessions||0);
+          const offset=s.status==='scheduled'?1:0;
+          stxt=`${sType} ${u+offset}/${s.pt_products.total_sessions||0}`;
+        }
+        const memName=s.members?.name||sType;
+        const sid=s.id;
+        html+=`<div class="sc-trainer-sess" onclick="scOpenInfo(scData.find(x=>x.id==='${sid}'))">
+          <div class="sess-time">${tStr} · ${dur}분${sType!=='PT'&&sType!=='SPT'?' · '+sType:''}</div>
+          <div class="sess-name">${memName}</div>
+          ${stxt?`<div class="sess-sub">${stxt}</div>`:''}
+        </div>`;
+      });
+    }
+    html+='</div>';
+  });
+  html+='</div>';
+  dv.innerHTML=html;
 }
 
 const SC_CAL_START=6,SC_CAL_END=23,SC_CAL_PX=56;
@@ -1604,10 +1662,11 @@ function scRenderCal(){
   const todayISO=scYMD(new Date());
   const now=new Date(),nowH=now.getHours(),nowM=now.getMinutes();
 
-  // 날짜 헤더
+  // 날짜 헤더 (클릭 시 전체시간표 모달)
   document.getElementById('scDateRow').innerHTML='<div class="sc-gutter"></div>'+days.map(d=>{
     const isT=scYMD(d)===todayISO;
-    return`<div class="sc-day-hdr${isT?' today':''}"><div class="sc-dhdr-name">${SC_DAY[d.getDay()]}</div><div class="sc-dhdr-num">${d.getDate()}</div></div>`;
+    const ymd=scYMD(d);
+    return`<div class="sc-day-hdr${isT?' today':''}" onclick="openBranchSchedModal('${ymd}')" style="cursor:pointer;" title="전체시간표 보기"><div class="sc-dhdr-name">${SC_DAY[d.getDay()]}</div><div class="sc-dhdr-num">${d.getDate()}</div></div>`;
   }).join('');
 
   // 시간 컬럼
@@ -1836,10 +1895,224 @@ async function doLogout() {
 
 init();
 </script>
+<!-- ── 전체 시간표 모달 ────────────────────────────────── -->
+<div id="branchSchedModal" style="display:none;position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.75);flex-direction:column;align-items:center;justify-content:center;" onclick="if(event.target===this)closeBranchSchedModal()">
+  <div style="background:#111108;border-radius:16px;width:96vw;max-width:520px;max-height:92dvh;display:flex;flex-direction:column;overflow:hidden;border:1px solid #2a2518;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid #2a2518;flex-shrink:0;">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:#fff;">전체 시간표</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;" id="bsSubtitle"></div>
+      </div>
+      <button onclick="closeBranchSchedModal()" style="background:none;border:none;color:#888;font-size:20px;cursor:pointer;padding:4px;">✕</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid #2a251833;flex-shrink:0;">
+      <button id="bsBtnToday" onclick="onBsDay(0)" style="flex:1;background:#c9a84c;border:none;color:#111;border-radius:8px;padding:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">오늘</button>
+      <button id="bsBtnTomorrow" onclick="onBsDay(1)" style="flex:1;background:#1a1a14;border:1px solid #2a251855;color:#888;border-radius:8px;padding:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">내일</button>
+      <input type="hidden" id="bsDatePicker" value="">
+    </div>
+    <div style="overflow:auto;-webkit-overflow-scrolling:touch;flex:1;display:flex;align-items:flex-start;justify-content:flex-start;background:#f4f4f4;" id="bsCanvasWrap">
+      <canvas id="bsCanvas" style="display:block;"></canvas>
+    </div>
+    <div style="padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid #2a251833;flex-shrink:0;">
+      <button onclick="downloadBranchSched()" style="width:100%;background:linear-gradient(135deg,#c9a84c,#a07830);border:none;color:#111;border-radius:10px;padding:13px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">📥 저장 / 공유</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════ 전체 시간표 캔버스 (관리자용) ══════════
+const BS_DAYS=['일','월','화','수','목','금','토'];
+let _bsTrainers=[],_bsSchedules=[],_bsCurrentDate='';
+
+function closeBranchSchedModal(){document.getElementById('branchSchedModal').style.display='none';}
+
+function _bsSetDayBtn(offset){
+  document.getElementById('bsBtnToday').style.background=offset===0?'#c9a84c':'#1a1a14';
+  document.getElementById('bsBtnToday').style.color=offset===0?'#111':'#888';
+  document.getElementById('bsBtnTomorrow').style.background=offset===1?'#c9a84c':'#1a1a14';
+  document.getElementById('bsBtnTomorrow').style.color=offset===1?'#111':'#888';
+}
+
+async function onBsDay(offset){
+  _bsSetDayBtn(offset);
+  const d=new Date();d.setDate(d.getDate()+offset);
+  _bsCurrentDate=scYMD(d);
+  document.getElementById('bsDatePicker').value=_bsCurrentDate;
+  document.getElementById('bsSubtitle').textContent='불러오는 중...';
+  await _bsLoadDay(_bsCurrentDate);
+  drawBranchCanvas(_bsCurrentDate);
+}
+
+async function openBranchSchedModal(dateStr){
+  document.getElementById('branchSchedModal').style.display='flex';
+  const today=scYMD(new Date());
+  const tomorrow=scYMD(new Date(Date.now()+86400000));
+  _bsCurrentDate=dateStr||today;
+  document.getElementById('bsDatePicker').value=_bsCurrentDate;
+  document.getElementById('bsSubtitle').textContent='불러오는 중...';
+  // 오늘/내일 버튼 상태
+  _bsSetDayBtn(_bsCurrentDate===today?0:_bsCurrentDate===tomorrow?1:-1);
+  // 선택된 지점으로 트레이너 필터 (없으면 전체)
+  const branch=document.getElementById('scBranchSel')?.value||'';
+  _bsTrainers=branch
+    ?(_scAllTrainers||[]).filter(t=>t.gym_location===branch&&t.is_active!==false)
+    :(_scAllTrainers||[]).filter(t=>t.is_active!==false);
+  await _bsLoadDay(_bsCurrentDate);
+  drawBranchCanvas(_bsCurrentDate);
+}
+
+async function _bsLoadDay(dateStr){
+  if(!_bsTrainers.length)return;
+  const ids=_bsTrainers.map(t=>t.id);
+  const{data}=await db.from('schedules')
+    .select('id,trainer_id,member_id,sched_date,start_time,end_time,type,status,pt_product_id,members(name),pt_products(total_sessions,remaining_sessions)')
+    .in('trainer_id',ids).eq('sched_date',dateStr).neq('status','cancelled').order('start_time');
+  _bsSchedules=data||[];
+}
+
+function drawBranchCanvas(dateStr){
+  const canvas=document.getElementById('bsCanvas');
+  const ctx=canvas.getContext('2d');
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const CANVAS_W=1240,CANVAS_H=877;
+  const T_START=6,T_END=23,NUM_COLS=T_END-T_START+1;
+  const LABEL_W=80,SUM_W=46,SUM_N=4,TOTAL_SUM_W=SUM_W*SUM_N;
+  const COL_W=Math.floor((CANVAS_W-LABEL_W-TOTAL_SUM_W)/NUM_COLS);
+  const ACTUAL_TIME_W=COL_W*NUM_COLS;
+  const TITLE_H=52,SUB_H=22,TH=28,FOOTER_H=0;
+  const trainers=_bsTrainers.slice(0,10);
+  const nRows=trainers.length+1;
+  const ROW_H=Math.floor((CANVAS_H-TITLE_H-SUB_H-TH-FOOTER_H)/nRows);
+  const TABLE_H=TH+nRows*ROW_H;
+  canvas.width=CANVAS_W*dpr;canvas.height=CANVAS_H*dpr;
+  canvas.style.width=CANVAS_W+'px';canvas.style.height=CANVAS_H+'px';
+  ctx.scale(dpr,dpr);
+  const[yr,mo,da]=dateStr.split('-').map(Number);
+  const dow=new Date(yr,mo-1,da).getDay();
+  const branch=document.getElementById('scBranchSel')?.value||'전체';
+  const dateLabel=`${mo}/${da}(${BS_DAYS[dow]})`;
+  document.getElementById('bsSubtitle').textContent=`${branch} · ${dateLabel} · 트레이너 ${trainers.length}명`;
+  const CELL_BG={SPT:'#ede8ff',업무:'#ddeeff',청소:'#e4ffe4',홍보:'#ffe4f0',식사:'#ffd6d6'};
+  const FONT=`'Apple SD Gothic Neo','Noto Sans KR',sans-serif`;
+  function cleanName(raw){return(raw||'').replace(/\d+$/,'').trim().slice(0,3);}
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,CANVAS_W,CANVAS_H);
+  ctx.fillStyle='#111';ctx.font=`bold 20px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText(`베라짐 ${branch} ${dateLabel} PT팀 데일리차트`,CANVAS_W/2,TITLE_H-10);
+  ctx.fillStyle='#666';ctx.font=`10px ${FONT}`;
+  ctx.fillText('업무 우선순위 : 미팅 → 수업 → 식사 → 청소 → 홍보 → PT',CANVAS_W/2,TITLE_H+8);
+  const tableY=TITLE_H+SUB_H;
+  ctx.fillStyle='#f0f0f0';ctx.fillRect(0,tableY,LABEL_W,TH);
+  ctx.fillStyle='#f5f5f5';ctx.fillRect(LABEL_W,tableY,ACTUAL_TIME_W,TH);
+  const timeEndX=LABEL_W+ACTUAL_TIME_W;
+  const trainerRowsH=TH+trainers.length*ROW_H;
+  for(let i=0;i<NUM_COLS;i++){
+    const h=T_START+i,x=LABEL_W+i*COL_W;
+    ctx.fillStyle='#333';ctx.font=`bold 10px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(`${h}시`,x+COL_W/2,tableY+TH/2+4);
+    ctx.strokeStyle='#ccc';ctx.lineWidth=0.5;
+    ctx.beginPath();ctx.moveTo(x,tableY);ctx.lineTo(x,tableY+trainerRowsH);ctx.stroke();
+  }
+  ctx.strokeStyle='#888';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(timeEndX,tableY);ctx.lineTo(timeEndX,tableY+trainerRowsH);ctx.stroke();
+  const sumLabels=['SPT','PT','NS','PT합계'],sumBgs=['#e8d5ff','#c8e0ff','#ffd5d5','#ffeb9c'],sumFg=['#5b21b6','#1e40af','#b91c1c','#374151'];
+  sumLabels.forEach((lbl,si)=>{
+    const sx=timeEndX+si*SUM_W;
+    ctx.fillStyle=sumBgs[si];ctx.fillRect(sx,tableY,SUM_W,TH);
+    ctx.fillStyle=sumFg[si];ctx.font=`bold 9px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(lbl,sx+SUM_W/2,tableY+TH/2+4);
+    ctx.strokeStyle='#888';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(sx,tableY);ctx.lineTo(sx,tableY+TABLE_H);ctx.stroke();
+  });
+  ctx.beginPath();ctx.moveTo(CANVAS_W,tableY);ctx.lineTo(CANVAS_W,tableY+TABLE_H);ctx.stroke();
+  trainers.forEach((trainer,ti)=>{
+    const rowY=tableY+TH+ti*ROW_H;
+    ctx.fillStyle=ti%2===0?'#fafafa':'#f3f5f9';
+    ctx.fillRect(0,rowY,timeEndX,ROW_H);
+    ctx.fillStyle='#ffffff';ctx.fillRect(timeEndX,rowY,TOTAL_SUM_W,ROW_H);
+    ctx.strokeStyle='#ccc';ctx.lineWidth=0.5;
+    ctx.beginPath();ctx.moveTo(0,rowY+ROW_H);ctx.lineTo(CANVAS_W,rowY+ROW_H);ctx.stroke();
+    ctx.fillStyle='#111';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(trainer.name,LABEL_W/2,rowY+ROW_H/2+4);
+
+    const tId=String(trainer.id);
+    const trainerSess=_bsSchedules.filter(s=>String(s.trainer_id)===tId);
+    let cntSPT=0,cntPT=0,cntNS=0;
+
+    trainerSess.forEach(sess=>{
+      const h=parseInt(String(sess.start_time));
+      if(isNaN(h)||h<T_START||h>T_END)return;
+      const cellX=LABEL_W+(h-T_START)*COL_W;
+      const sType=sess.type||'PT';
+      const bg=CELL_BG[sType]||(sType==='PT'?'#e8e4ff':'#fff9e6');
+      ctx.fillStyle=bg;ctx.fillRect(cellX+1,rowY+1,COL_W-2,ROW_H-2);
+      ctx.fillStyle='#222';ctx.font=`bold 9px ${FONT}`;ctx.textAlign='center';
+      if(sType==='PT'||sType==='SPT'){
+        const name=cleanName(sess.members?.name||'');
+        const usedM=(sess.pt_products?.total_sessions||0)-(sess.pt_products?.remaining_sessions||0);
+        const total=sess.pt_products?.total_sessions||0;
+        const num=sess.status==='scheduled'?usedM+1:usedM;
+        ctx.fillText(name||sType,cellX+COL_W/2,rowY+ROW_H/2-3);
+        ctx.font=`8px ${FONT}`;
+        ctx.fillText(`PT${num}/${total}`,cellX+COL_W/2,rowY+ROW_H/2+8);
+        if(sType==='SPT')cntSPT++;else cntPT++;
+      }else{
+        ctx.fillText(sType,cellX+COL_W/2,rowY+ROW_H/2+4);
+        if(sType==='NS')cntNS++;
+      }
+    });
+
+    [cntSPT,cntPT,cntNS,cntSPT+cntPT].forEach((v,si)=>{
+      const sx=timeEndX+si*SUM_W;
+      ctx.fillStyle=sumFg[si];ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';
+      ctx.fillText(v>0?String(v):'-',sx+SUM_W/2,rowY+ROW_H/2+4);
+    });
+  });
+  // 비고 행
+  const noteY=tableY+TH+trainers.length*ROW_H;
+  ctx.fillStyle='#f8f8f8';ctx.fillRect(0,noteY,CANVAS_W,ROW_H);
+  ctx.strokeStyle='#ccc';ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.moveTo(0,noteY);ctx.lineTo(CANVAS_W,noteY);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,noteY+ROW_H);ctx.lineTo(CANVAS_W,noteY+ROW_H);ctx.stroke();
+  ctx.fillStyle='#555';ctx.font=`10px ${FONT}`;ctx.textAlign='left';
+  ctx.fillText('비고',8,noteY+ROW_H/2+4);
+  // 외곽선
+  ctx.strokeStyle='#999';ctx.lineWidth=1.5;
+  ctx.strokeRect(0,tableY,CANVAS_W,TABLE_H);
+  // ── 첫 세션 시간으로 자동 스크롤 ──
+  if(_bsSchedules.length){
+    const T_START_VAL=6;
+    const minH=_bsSchedules.reduce((m,s)=>Math.min(m,parseInt(s.start_time)),23);
+    const scrollX=Math.max(0,LABEL_W+(minH-T_START_VAL-1)*COL_W);
+    setTimeout(()=>{const wrap=document.getElementById('bsCanvasWrap');if(wrap)wrap.scrollLeft=scrollX;},60);
+  }
+}
+
+async function downloadBranchSched(){
+  const canvas=document.getElementById('bsCanvas');
+  const dateStr=_bsCurrentDate||scYMD(new Date());
+  const[yr,mo,da]=dateStr.split('-');
+  const fname=`베라짐_시간표_${yr}${mo}${da}.jpg`;
+  try{
+    const blob=await new Promise(res=>canvas.toBlob(res,'image/jpeg',0.93));
+    const file=new File([blob],fname,{type:'image/jpeg'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'베라짐 시간표'});return;
+    }
+  }catch(e){if(e.name==='AbortError')return;}
+  const url=canvas.toDataURL('image/jpeg',0.93);
+  const a=document.createElement('a');a.href=url;a.download=fname;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>document.body.removeChild(a),200);
+  if(/iPhone|iPad/i.test(navigator.userAgent)){
+    setTimeout(()=>{const w=window.open();if(w){w.document.write(`<img src="${url}" style="max-width:100%;display:block;">`);w.document.title='시간표';}},500);
+  }
+}
+</script>
+
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/veragym-test/service-worker.js').catch(()=>{});
+    navigator.serviceWorker.register('/veragym-app/service-worker.js').catch(()=>{});
   });
 }
 </script>

@@ -2255,7 +2255,7 @@ async function loadAdminRevenue() {
     // 병렬: 예상매출 + 결제기록
     const [fRes, pRes] = await Promise.all([
       db.from('sales_forecasts').select('*').in('trainer_id', trainerIds).order('created_at'),
-      db.from('payment_records').select('payment_date,payment_amount,trainer_id').in('trainer_id', trainerIds)
+      db.from('payment_records').select('payment_date,net_amount,trainer_id').in('trainer_id', trainerIds)
     ]);
     _admRevForecasts = fRes.data || [];
     _admRevPayments = pRes.data || [];
@@ -2276,7 +2276,7 @@ function renderAdminRevSummary() {
   // 당월 달성매출 (payment_records)
   const achieved = _admRevPayments
     .filter(p => p.payment_date.slice(0,7) === cm)
-    .reduce((s,p) => s + p.payment_amount, 0);
+    .reduce((s,p) => s + p.net_amount, 0);
   document.getElementById('adminRevAchieved').textContent = _admFmtWon(achieved);
 }
 

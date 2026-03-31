@@ -1,5 +1,5 @@
 // VERA GYM App - Service Worker [TEST]
-const CACHE_NAME = 'veragym-v14';
+const CACHE_NAME = 'veragym-v15';
 const IMG_CACHE  = 'veragym-test-img-v1'; // 운동 이미지 전용 캐시 (별도 관리)
 
 const STATIC = [
@@ -14,6 +14,7 @@ const STATIC = [
   '/veragym-test/member-view.html',
   '/veragym-test/config.js',
   '/veragym-test/manifest.json',
+  '/veragym-test/manifest-admin.json',
   '/veragym-test/manifest-member.json',
   '/veragym-test/icons/icon-192.png',
   '/veragym-test/icons/icon-512.png',

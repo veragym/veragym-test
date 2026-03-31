@@ -412,7 +412,7 @@ async function init() {
 }
 
 // ─── 전체 운동 DB 로드 (sessionStorage 5분 캐싱) ───
-const _EX_CACHE_KEY = 'vg_exdb_cache_v3'; // v3: 빈 캐시 버그 수정
+const _EX_CACHE_KEY = 'vg_exdb_cache_v4'; // v4: weight_mode 필드 추가
 const _EX_CACHE_TTL = 5 * 60 * 1000; // 5분
 
 async function loadAllExercises() {
@@ -434,7 +434,7 @@ async function loadAllExercises() {
   while (true) {
     const { data, error } = await db
       .from('exercise_refs')
-      .select('id,name_ko,name_en,part_unified,tool_unified,image_url,muscles_detail')
+      .select('id,name_ko,name_en,part_unified,tool_unified,image_url,muscles_detail,weight_mode')
       .eq('is_active', true)
       .order('name_ko', { ascending: true })
       .range(page * PAGE, (page + 1) * PAGE - 1);
@@ -587,6 +587,8 @@ async function removeRoutineExercise(rowId, exerciseName) {
   if (ok) renderRoutines();
 }
 
+function defaultWeightMode(tool) { return tool === '덤벨' ? 'single' : 'total'; }
+
 function openRoutineAddExerciseModal(routineId, routineName, currentExCount) {
   document.getElementById('routineAddExOverlay')?.remove();
   const overlay = document.createElement('div');
@@ -723,10 +725,11 @@ window.addExToRoutine = async function(routineId, key) {
   const icon = document.getElementById('routineAddIcon_' + ex.id);
   if (row) { row.style.opacity = '0.5'; row.style.pointerEvents = 'none'; }
   const ok = await routineExerciseAppend(routineId, trainer.id, {
-    refId:   ex.id,
-    name_ko: ex.name_ko || ex.name_en,
-    part:    ex.part_unified || '',
-    tool:    ex.tool_unified || '',
+    refId:       ex.id,
+    name_ko:     ex.name_ko || ex.name_en,
+    part:        ex.part_unified || '',
+    tool:        ex.tool_unified || '',
+    weight_mode: ex.weight_mode || defaultWeightMode(ex.tool_unified || ''),
   }, window._routineAddExCount ?? 0);
   if (ok) {
     window._routineAddExCount = (window._routineAddExCount ?? 0) + 1;

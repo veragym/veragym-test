@@ -27,7 +27,7 @@ async function routineList(trainerId) {
 async function routineExercises(routineId) {
   const { data, error } = await db
     .from('trainer_routine_exercises')
-    .select('exercise_ref_id, name_ko, part, tool, order_index')
+    .select('id, exercise_ref_id, name_ko, part, tool, order_index')
     .eq('routine_id', routineId)
     .order('order_index', { ascending: true });
   if (error) { console.error('routineExercises', error); return []; }
@@ -62,6 +62,39 @@ async function routineSave(trainerId, routineName, exercises) {
     .from('trainer_routine_exercises')
     .insert(rows);
   if (eErr) { console.error('routineSave exercises', eErr); return false; }
+  return true;
+}
+
+/* ─────────────────────────────────────────────
+   기존 루틴에 운동 하나 추가
+   exercise: { refId, name_ko, part, tool }
+   orderIndex: 삽입 순서 (현재 운동 수)
+───────────────────────────────────────────── */
+async function routineExerciseAppend(routineId, trainerId, exercise, orderIndex) {
+  const { error } = await db
+    .from('trainer_routine_exercises')
+    .insert({
+      routine_id:      routineId,
+      trainer_id:      trainerId,
+      exercise_ref_id: exercise.refId || exercise.id || null,
+      name_ko:         exercise.name_ko || exercise.name || '운동',
+      part:            exercise.part    || exercise.part_unified || '',
+      tool:            exercise.tool    || exercise.tool_unified || '',
+      order_index:     orderIndex,
+    });
+  if (error) { console.error('routineExerciseAppend', error); return false; }
+  return true;
+}
+
+/* ─────────────────────────────────────────────
+   루틴 운동 하나 삭제
+───────────────────────────────────────────── */
+async function routineExerciseRemove(rowId) {
+  const { error } = await db
+    .from('trainer_routine_exercises')
+    .delete()
+    .eq('id', rowId);
+  if (error) { console.error('routineExerciseRemove', error); return false; }
   return true;
 }
 
@@ -135,7 +168,6 @@ async function routinePickerOpen(options) {
         display:flex;align-items:center;gap:12px;
       `;
       item.innerHTML = `
-        <span style="font-size:18px;">📋</span>
         <span style="flex:1;font-size:14px;color:#e0eaf4;">${r.name}</span>
         <span style="font-size:11px;color:#8aa8c4;">${r.created_at.slice(0,10)}</span>
       `;

@@ -252,6 +252,10 @@ body {
 <!-- 하단 버튼 -->
 <div class="add-bar">
   <button class="btn-add-ex" onclick="openSearch()">＋ 운동 추가</button>
+  <button class="btn-add-ex" style="background:#1a2e4a;border-color:#2a4a6a55;color:#93c5fd;"
+    onclick="routinePickerOpen({ trainerId: trainer?.id, onSelect: loadRoutineIntoImageCard, withImageUrl: true })">
+    📋 루틴 불러오기
+  </button>
   <button class="btn-gen-img" id="btnGenImg" onclick="generateImage()">📥 이미지 생성</button>
 </div>
 
@@ -284,6 +288,7 @@ body {
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="routine-utils.js"></script>
 <script>
 init_db();
 
@@ -721,6 +726,31 @@ function showToast(msg) {
 }
 
 init();
+
+// ─── 루틴 불러오기 콜백 (image-card 전용: image_url 포함) ───
+async function loadRoutineIntoImageCard(routineExs) {
+  if (!routineExs || routineExs.length === 0) return;
+  const hasExisting = exercises.length > 0;
+  if (hasExisting) {
+    const replace = confirm(
+      `현재 운동 ${exercises.length}개가 있습니다.\n루틴 운동으로 교체할까요?\n(취소 시 기존 운동 뒤에 추가됩니다)`
+    );
+    if (replace) exercises = [];
+  }
+  routineExs.forEach(ex => {
+    exercises.push({
+      libId:     null,
+      refId:     ex.refId || null,
+      name:      ex.name,
+      part:      ex.part  || '',
+      tool:      ex.tool  || '',
+      image_url: ex.image_url || null,
+      sets:      [{ set: 1, weight: 0, reps: 10 }],
+    });
+  });
+  renderExercises();
+  showToast(`루틴 운동 ${routineExs.length}개 불러옴`);
+}
 </script>
 </body>
 </html>

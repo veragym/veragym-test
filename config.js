@@ -1,12 +1,12 @@
 // ============================================================
-// VERA GYM APP - config.js [TEST 환경]
-// ⚠️ 테스트 DB 연결 — 운영 데이터와 분리됨
+// VERA GYM APP - config.js [운영 환경]
+// ✅ 운영 DB 연결
 // ============================================================
 
-const SUPABASE_URL      = 'https://jpfgcwlhitzwjoppszzl.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_t6mKiM_s_ruF6fuzj4uz6g_kusBpwE5';
+const SUPABASE_URL      = 'https://lrzffwawpoidimlrbfxe.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_BpDPrt2x48OiZNKuGWlBig_-DtnqepE';
 const SUPER_ADMIN_EMAIL = 'veragym@naver.com';
-const EDGE_BASE         = 'https://jpfgcwlhitzwjoppszzl.supabase.co/functions/v1';
+const EDGE_BASE         = 'https://lrzffwawpoidimlrbfxe.supabase.co/functions/v1';
 
 let db;
 function init_db() {
@@ -44,7 +44,8 @@ async function requireTrainer() {
   if (!session) { location.replace('trainer-login.html'); return null; }
 
   // 캐시가 있고, auth_id + TTL 이내면 그대로 사용
-  const _TRAINER_CACHE_TTL = 24 * 60 * 60 * 1000; // 24시간
+  // 4시간: 관리자가 트레이너 비활성화/정보변경 시 최대 4시간 내 반영
+  const _TRAINER_CACHE_TTL = 4 * 60 * 60 * 1000; // 4시간
   const raw = localStorage.getItem('vg_trainer');
   if (raw) {
     try {

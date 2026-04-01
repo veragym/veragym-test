@@ -876,21 +876,21 @@ async function loadTrainers() {
 
   const card = t => `
     <div class="card">
-      <div class="avatar">${(t.name||'?').charAt(0)}</div>
+      <div class="avatar">${(esc(t.name)||'?').charAt(0)}</div>
       <div class="info">
         <div class="name-row">
-          ${t.name}
+          ${esc(t.name)}
           <span class="badge ${t.is_admin ? 'badge-admin' : 'badge-trainer'}">${t.is_admin ? '관리자' : '트레이너'}</span>
           ${!t.is_active ? '<span class="badge badge-inactive">비활성</span>' : ''}
         </div>
-        <div class="sub-row">${t.gym_location}</div>
+        <div class="sub-row">${esc(t.gym_location)}</div>
       </div>
       <div class="actions">
-        <button class="btn-sm" onclick="openChangePw('${t.id}','${t.name}')">비번변경</button>
-        <button class="btn-sm" onclick="toggleActive('${t.id}','${t.name}',${t.is_active})">
+        <button class="btn-sm" onclick="openChangePw('${t.id}','${esc(t.name)}')">비번변경</button>
+        <button class="btn-sm" onclick="toggleActive('${t.id}','${esc(t.name)}',${t.is_active})">
           ${t.is_active ? '비활성화' : '활성화'}
         </button>
-        ${!t.is_admin && me?.is_admin ? `<button class="btn-sm btn-danger" onclick="deleteTrainer('${t.id}','${t.name}')">삭제</button>` : ''}
+        ${!t.is_admin && me?.is_admin ? `<button class="btn-sm btn-danger" onclick="deleteTrainer('${t.id}','${esc(t.name)}')">삭제</button>` : ''}
       </div>
     </div>`;
 
@@ -937,7 +937,12 @@ async function addTrainer() {
       body: JSON.stringify({ name, password: pw, gym_location: gym, is_admin: isAdmin }),
     });
 
-    const result = await res.json();
+    let result;
+    try {
+      result = await res.json();
+    } catch (jsonErr) {
+      throw new Error('서버 응답 오류 (HTTP '+res.status+')');
+    }
     if (!res.ok || result.error) throw new Error(result.error || '추가 실패');
 
     closeModal('addModal');
@@ -986,7 +991,12 @@ async function doChangePw() {
       },
       body: JSON.stringify({ trainer_id: _changePwTargetId, new_password: newPw }),
     });
-    const result = await res.json();
+    let result;
+    try {
+      result = await res.json();
+    } catch (jsonErr) {
+      throw new Error('서버 응답 오류 (HTTP '+res.status+')');
+    }
     if (!res.ok || result.error) throw new Error(result.error || '변경 실패');
     closeModal('changePwModal');
     showToast(`${result.name} 비밀번호 변경 완료!`);
@@ -1145,7 +1155,7 @@ function showBranch(branch) {
         <div class="acc-sub-block">
           <div class="acc-sub-header" onclick="toggleAcc('${accId}')">
             <span>
-              <span class="acc-sub-title">${tName}</span>
+              <span class="acc-sub-title">${esc(tName)}</span>
               <span class="acc-sub-count">${tMembers.length}명</span>
             </span>
             <span class="acc-arrow" id="${accId}-arrow">›</span>
@@ -1220,8 +1230,8 @@ function memberRow(m) {
   const sub = m.phone || (m.notes ? m.notes.slice(0, 24) : '');
   return `<div class="member-row" onclick="showMemberDetail('${m.id}')">
     <div>
-      <div class="member-row-name">${m.name}${statusBadge}</div>
-      ${sub ? `<div style="font-size:10px;color:#555;margin-top:2px">${sub}</div>` : ''}
+      <div class="member-row-name">${esc(m.name)}${statusBadge}</div>
+      ${sub ? `<div style="font-size:10px;color:#555;margin-top:2px">${esc(sub)}</div>` : ''}
     </div>
     <div class="member-row-arrow">›</div>
   </div>`;
@@ -1405,8 +1415,8 @@ async function loadPtProducts(memberId) {
       </div>` : ''}
       <div class="pt-meta">
         계약일 ${p.contract_date}<br>
-        계약 ${ct?.name || '미지정'} · 담당 <span style="color:#c9a84c">${at?.name || '미배정'}</span>
-        ${p.notes ? `<br>${p.notes}` : ''}
+        계약 ${esc(ct?.name) || '미지정'} · 담당 <span style="color:#c9a84c">${esc(at?.name) || '미배정'}</span>
+        ${p.notes ? `<br>${esc(p.notes)}` : ''}
       </div>
       <div style="margin-top:8px">
         <button class="btn-sm" style="font-size:11px"
@@ -1448,8 +1458,9 @@ async function saveChangeTrainer() {
     closeModal('changeTrainerModal');
     showToast('담당 트레이너 변경 완료!');
     // 로컬 데이터 갱신 후 현재 상품 목록 재렌더
-    const { data } = await db.from('members')
+    const { data, error: membersErr } = await db.from('members')
       .select('id,name,gym_location,notes,is_active,trainer_id').order('name');
+    if (membersErr) throw membersErr;
     if (data) _allMembers = data;
     if (_currentMemberId) await loadPtProducts(_currentMemberId);
   } catch(e) {
@@ -1769,15 +1780,15 @@ function _renderExList() {
     <div class="ex-card" onclick="openExDetail('${r.id}')" style="cursor:pointer">
       <div style="display:flex;align-items:center;gap:12px">
         ${r.image_url
-          ? `<img src="${r.image_url}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#222" loading="lazy" onerror="this.style.display='none'">`
+          ? `<img src="${esc(r.image_url)}" style="width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;background:#222" loading="lazy" onerror="this.style.display='none'">`
           : `<div style="width:56px;height:56px;border-radius:8px;background:#1a1a12;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0"></div>`}
         <div style="flex:1;min-width:0">
-          <div class="ex-name">${r.name_ko}</div>
-          ${r.name_en ? `<div class="ex-en">${r.name_en}</div>` : ''}
+          <div class="ex-name">${esc(r.name_ko)}</div>
+          ${r.name_en ? `<div class="ex-en">${esc(r.name_en)}</div>` : ''}
           <div class="ex-tags">
-            ${r.tool_unified ? `<span class="ex-tag-tool">${r.tool_unified}</span>` : ''}
-            ${r.part_unified ? `<span class="ex-tag-part">${r.part_unified}</span>` : ''}
-            ${r.muscles_detail ? `<span class="ex-tag-muscle">${r.muscles_detail.slice(0,35)}${r.muscles_detail.length>35?'…':''}</span>` : ''}
+            ${r.tool_unified ? `<span class="ex-tag-tool">${esc(r.tool_unified)}</span>` : ''}
+            ${r.part_unified ? `<span class="ex-tag-part">${esc(r.part_unified)}</span>` : ''}
+            ${r.muscles_detail ? `<span class="ex-tag-muscle">${esc(r.muscles_detail.slice(0,35))}${r.muscles_detail.length>35?'…':''}</span>` : ''}
           </div>
         </div>
         <div style="color:#333;font-size:13px;flex-shrink:0">›</div>
@@ -1808,15 +1819,15 @@ function openExDetail(id) {
 
   // 태그 (도구 + 부위)
   document.getElementById('exDetailTags').innerHTML = [
-    r.tool_unified ? `<span class="ex-tag-tool" style="font-size:12px;padding:4px 12px">${r.tool_unified}</span>` : '',
-    r.part_unified ? `<span class="ex-tag-part" style="font-size:12px;padding:4px 12px;color:#aaa">${r.part_unified}</span>` : '',
+    r.tool_unified ? `<span class="ex-tag-tool" style="font-size:12px;padding:4px 12px">${esc(r.tool_unified)}</span>` : '',
+    r.part_unified ? `<span class="ex-tag-part" style="font-size:12px;padding:4px 12px;color:#aaa">${esc(r.part_unified)}</span>` : '',
   ].join('');
 
   // 주요근육 — · 구분자를 줄바꿈으로 표시
   const muscles = r.muscles_detail || '정보 없음';
   document.getElementById('exDetailMuscles').innerHTML =
     muscles.split('·').map(m => m.trim()).filter(Boolean)
-      .map(m => `<span style="display:inline-block;background:#1a1a12;border:1px solid #2a2518;border-radius:8px;padding:4px 12px;margin:3px;font-size:13px">${m}</span>`)
+      .map(m => `<span style="display:inline-block;background:#1a1a12;border:1px solid #2a2518;border-radius:8px;padding:4px 12px;margin:3px;font-size:13px">${esc(m)}</span>`)
       .join('') || '<span style="color:#444">정보 없음</span>';
 
   openModal('exDetailModal');
@@ -1826,9 +1837,10 @@ function openExDetail(id) {
 // ── 운동DB Excel 내보내기 ─────────────────────────────────────
 async function exportExerciseExcel() {
   showToast('Excel 생성 중...');
-  const { data } = await db.from('exercise_refs')
+  const { data, error } = await db.from('exercise_refs')
     .select('name_ko,name_en,tool_unified,part_unified,muscles_detail')
     .eq('is_active', true).order('name_ko');
+  if (error) { showToast('불러오기 실패'); return; }
   if (!data?.length) { showToast('데이터 없음'); return; }
 
   // TSV로 만들어서 다운로드 (xlsx 라이브러리 없이)
@@ -1865,8 +1877,8 @@ async function loadRequests() {
         <span class="req-type ${r.type}">${TYPE_LABEL[r.type] || r.type}</span>
         <span class="req-status ${r.status === 'completed' ? 'completed' : ''}">${r.status === 'pending' ? '처리중' : '완료'}</span>
       </div>
-      <div class="req-content">${r.content}</div>
-      <div class="req-meta">${r.trainers?.name || '알수없음'} · ${new Date(r.created_at).toLocaleDateString('ko-KR')}</div>
+      <div class="req-content">${esc(r.content)}</div>
+      <div class="req-meta">${esc(r.trainers?.name) || '알수없음'} · ${new Date(r.created_at).toLocaleDateString('ko-KR')}</div>
       <div class="req-actions">
         ${r.status === 'pending' ? `<button class="btn-complete" onclick="completeReq('${r.id}')">완료 처리</button>` : ''}
         <button class="btn-req-del" onclick="deleteReq('${r.id}')">삭제</button>
@@ -2021,8 +2033,9 @@ function scRenderDayView(){
         }
         const memName=s.members?.name||sType;
         const sid=s.id;
-        html+=`<div class="sc-trainer-sess" onclick="scOpenInfo(scData.find(x=>x.id==='${sid}'))">
-          <div class="sess-time">${tStr} · ${dur}분${sType!=='PT'&&sType!=='SPT'?' · '+sType:''}</div>
+        const statusBadge=s.status==='completed'?'<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;background:#4ade8022;border:1px solid #4ade8055;color:#4ade80;margin-left:5px;">완료</span>':s.status==='noshow'?'<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;background:#f59e0b22;border:1px solid #f59e0b55;color:#f59e0b;margin-left:5px;">노쇼</span>':'';
+        html+=`<div class="sc-trainer-sess" onclick="scOpenInfo('${sid}')">
+          <div class="sess-time" style="display:flex;align-items:center;">${tStr} · ${dur}분${sType!=='PT'&&sType!=='SPT'?' · '+sType:''}${statusBadge}</div>
           <div class="sess-name">${memName}</div>
           ${stxt?`<div class="sess-sub">${stxt}</div>`:''}
         </div>`;
@@ -2102,7 +2115,7 @@ function scRenderCal(){
       if(sType==='PT'&&stxt){line2=scTrainerId?`PT ${stxt}`:(trainerName?`${trainerName} ${stxt}`:stxt);}
       else{line2=scTrainerId?'':(trainerName||'');}
       const sid=s.id;
-      col+=`<div class="sc-event" style="background:${evBg}dd;opacity:${evOp};top:${top}px;height:${height}px;" onclick="event.stopPropagation();scOpenInfo(scData.find(x=>x.id==='${sid}'))">${evExtra}<div class="sc-ev-title">${line1}</div>${line2?`<div class="sc-ev-sub">${line2}</div>`:''}</div>`;
+      col+=`<div class="sc-event" style="background:${evBg}dd;opacity:${evOp};top:${top}px;height:${height}px;" onclick="event.stopPropagation();scOpenInfo('${sid}')">${evExtra}<div class="sc-ev-title">${line1}</div>${line2?`<div class="sc-ev-sub">${line2}</div>`:''}</div>`;
     });
     // 현재 시각 표시선
     if(isT){const ny=scTimeToY(nowH,nowM);if(ny>=0&&ny<=TOTAL)col+=`<div class="sc-now-line" style="top:${ny}px"></div>`;}
@@ -2151,17 +2164,18 @@ function scBuildActBtns(s){
   const id=s.id;const isPtSpt=(s.type==='PT'||s.type==='SPT');let b='';
   if(s.status==='scheduled'){
     if(isPtSpt){
-      b+=`<button class="sc-btn sc-btn-green" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">완료</button>`;
-      b+=`<button class="sc-btn sc-btn-amber" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">노쇼</button>`;
+      b+=`<button class="sc-btn sc-btn-green" onclick="scOpenInfo('${id}')">완료</button>`;
+      b+=`<button class="sc-btn sc-btn-amber" onclick="scOpenInfo('${id}')">노쇼</button>`;
     }
-    b+=`<button class="sc-btn sc-btn-red" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">취소</button>`;
+    b+=`<button class="sc-btn sc-btn-red" onclick="scOpenInfo('${id}')">취소</button>`;
   }
-  if(isPtSpt&&s.status==='completed')b+=`<button class="sc-btn sc-btn-gold" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">완료 롤백</button>`;
-  if(isPtSpt&&s.status==='noshow')b+=`<button class="sc-btn sc-btn-gold" onclick="scOpenInfo(scData.find(x=>x.id==='${id}'))">노쇼 롤백</button>`;
+  if(isPtSpt&&s.status==='completed')b+=`<button class="sc-btn sc-btn-gold" onclick="scOpenInfo('${id}')">완료 롤백</button>`;
+  if(isPtSpt&&s.status==='noshow')b+=`<button class="sc-btn sc-btn-gold" onclick="scOpenInfo('${id}')">노쇼 롤백</button>`;
   return b;
 }
 
 function scOpenInfo(sched){
+  if(typeof sched==='string') sched=scData.find(x=>x.id===sched);
   if(!sched)return;
   scTarget=sched;scPendingAction=null;
   const[y,mo,d]=sched.sched_date.split('-').map(Number);
@@ -2698,7 +2712,8 @@ async function loadAdminRevenue() {
   const gym = document.getElementById('revGymSelect').value;
   try {
     // 해당 지점 트레이너 목록
-    const { data: trainers } = await db.from('trainers').select('id,name,gym_location,is_active,is_admin').eq('gym_location', gym).eq('is_active', true).order('name');
+    const { data: trainers, error: trainersErr } = await db.from('trainers').select('id,name,gym_location,is_active,is_admin').eq('gym_location', gym).eq('is_active', true).order('name');
+    if (trainersErr) throw trainersErr;
     _admRevTrainers = (trainers || []).filter(t => !t.is_admin);
     const trainerIds = _admRevTrainers.map(t => t.id);
 
@@ -2760,7 +2775,7 @@ function renderAdminTrainerList() {
 
     return `<div class="adm-trainer-card" onclick="toggleAdminTrainerDetail(this,'${t.id}','${month}')">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:14px;font-weight:600;color:#fff">${t.name}</span>
+        <span style="font-size:14px;font-weight:600;color:#fff">${esc(t.name)}</span>
         <div style="text-align:right">
           <div style="font-size:14px;font-weight:700;color:#c9a84c">${_admFmtWon(fcTotal)}</div>
           <div style="font-size:11px;color:#666">${fcCount}건</div>
@@ -2786,7 +2801,7 @@ function toggleAdminTrainerDetail(card, trainerId, month) {
       const unreg = !f.is_registered;
       return `<div class="adm-fc-item${unreg?' unreg':''}">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:13px;font-weight:600;color:${unreg?'#f87171':'#ddd'}">${f.member_name}</span>
+          <span style="font-size:13px;font-weight:600;color:${unreg?'#f87171':'#ddd'}">${esc(f.member_name)}</span>
           <span style="font-size:11px;padding:2px 6px;border-radius:4px;font-weight:600;${unreg?'background:#7f1d1d44;color:#f87171':'background:#16a34a33;color:#4ade80'}">${unreg?'미등록':'등록'}</span>
         </div>
         <div style="display:flex;gap:10px;font-size:11px;color:#888;margin-top:4px">
